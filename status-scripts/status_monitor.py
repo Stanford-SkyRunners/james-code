@@ -16,7 +16,7 @@ import json
 
 
 class StatusMonitor:
-    def __init__(self, config_file='/home/james/status-scripts/config.json'):
+    def __init__(self, config_file='/home/james/skyrunners/config.json'):
         """Initialize the status monitor with configuration."""
         self.config = self.load_config(config_file)
         self.startup_time = datetime.now()

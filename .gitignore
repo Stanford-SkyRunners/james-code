@@ -1,0 +1,5 @@
+# Claude Code configuration directory
+.claude
+
+# log files
+status_monitor.log

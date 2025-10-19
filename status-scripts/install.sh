@@ -17,7 +17,7 @@ if [ "$EUID" -eq 0 ]; then
 fi
 
 # Check if config.json exists
-if [ ! -f "/home/james/status-scripts/config.json" ]; then
+if [ ! -f "/home/james/skyrunners/config.json" ]; then
     echo "Error: config.json not found!"
     echo "Please create config.json from the template:"
     echo "  cp config.json.example config.json"
@@ -29,11 +29,11 @@ fi
 
 # Make the Python script executable
 echo "Making status_monitor.py executable..."
-chmod +x /home/james/status-scripts/status_monitor.py
+chmod +x /home/james/skyrunners/status-scripts/status_monitor.py
 
 # Copy systemd service file
 echo "Installing systemd service..."
-sudo cp /home/james/status-scripts/status-monitor.service /etc/systemd/system/
+sudo cp /home/james/skyrunners/status-scripts/status-monitor.service /etc/systemd/system/
 
 # Reload systemd
 echo "Reloading systemd..."
@@ -60,7 +60,7 @@ echo "Useful commands:"
 echo "=========================================="
 echo "Check status:    sudo systemctl status status-monitor"
 echo "View logs:       sudo journalctl -u status-monitor -f"
-echo "View log file:   tail -f /home/james/status-scripts/status_monitor.log"
+echo "View log file:   tail -f /home/james/skyrunners/status_monitor.log"
 echo "Stop service:    sudo systemctl stop status-monitor"
 echo "Restart service: sudo systemctl restart status-monitor"
 echo "Disable service: sudo systemctl disable status-monitor"
