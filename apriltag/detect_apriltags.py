@@ -141,10 +141,13 @@ class AprilTagDetector:
                             print(f"  Translation: {tag.pose_t}")
 
                 # Draw and display/save
-                if (display or save_detections) and tags:
-                    img_with_detections = self.draw_detections(frame, tags)
+                if display or save_detections:
+                    if tags:
+                        img_with_detections = self.draw_detections(frame, tags)
+                    else:
+                        img_with_detections = frame
 
-                    if save_detections:
+                    if save_detections and tags:
                         filename = f"detection_{int(time.time())}.jpg"
                         cv2.imwrite(filename, cv2.cvtColor(img_with_detections, cv2.COLOR_RGB2BGR))
                         print(f"Saved detection to {filename}")
