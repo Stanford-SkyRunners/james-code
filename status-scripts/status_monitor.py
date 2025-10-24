@@ -240,12 +240,21 @@ Raspberry Pi Status Monitor
             return False
 
     def wait_for_wifi(self):
-        """Wait for WiFi connection to be established."""
+        """Wait for WiFi connection to be established and network to be reachable."""
         print("Waiting for WiFi connection...")
         while True:
             wifi_info = self.get_wifi_info()
             if wifi_info['ssid'] != "Not connected" and wifi_info['ip_address'] != "No IP":
-                return wifi_info
+                # Verify network is actually reachable by pinging Google DNS
+                try:
+                    ping_result = subprocess.run(['ping', '-c', '1', '-W', '2', '8.8.8.8'],
+                                                capture_output=True, timeout=5)
+                    if ping_result.returncode == 0:
+                        return wifi_info
+                    else:
+                        print("WiFi connected but network not reachable yet, waiting...")
+                except:
+                    print("WiFi connected but network not reachable yet, waiting...")
             time.sleep(5)
 
     def run(self):
