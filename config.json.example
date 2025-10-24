@@ -1,0 +1,19 @@
+{
+  "username": "your-username",
+  "repo": "your-repo",
+  "email": {
+    "from_address": "you+code@example.com",
+    "to_address": "you@example.com",
+    "password": "your_smtp_password",
+    "smtp_server": "smtp.example.com",
+    "smtp_port": 587
+  }
+}
+
+/* Notes:
+ - Replace `username` with your Linux username (used for systemd User=).
+ - Replace `repo` with the repository folder name (e.g. "james-code").
+ - Set `from_address` to the email you will send from. The example uses a +code tag.
+ - `to_address` can be the same as `from_address` or another recipient.
+ - Save this file as `config.json` in the repository root before running `install.sh`.
+*/

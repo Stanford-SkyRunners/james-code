@@ -16,8 +16,18 @@ import json
 
 
 class StatusMonitor:
-    def __init__(self, config_file='/home/james/skyrunners/config.json'):
-        """Initialize the status monitor with configuration."""
+    def __init__(self, config_file=None):
+        """Initialize the status monitor with configuration.
+
+        By default the monitor looks for `config.json` in the repository root
+        (one directory up from this script's parent). This avoids hard-coding
+        the username or repo path in the source.
+        """
+        if config_file is None:
+            # repo root is one level up from the directory that contains this script
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+            config_file = os.path.join(repo_root, 'config.json')
+
         self.config = self.load_config(config_file)
         self.startup_time = datetime.now()
 
