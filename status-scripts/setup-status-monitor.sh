@@ -33,7 +33,7 @@ chmod +x /home/james/skyrunners/status-scripts/status_monitor.py
 
 # Copy systemd service file
 echo "Installing systemd service..."
-sudo cp /home/james/skyrunners/status-scripts/status-monitor.service /etc/systemd/system/
+sudo cp /home/james/skyrunners/services/status-monitor.service /etc/systemd/system/
 
 # Reload systemd
 echo "Reloading systemd..."

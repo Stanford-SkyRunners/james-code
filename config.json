@@ -5,5 +5,10 @@
     "from_address": "skyrunnersstatus@gmail.com",
     "to_address": "skyrunnersstatus@gmail.com",
     "password": "hzvw fkoh xtvh gwxf"
+  },
+  "backend": {
+    "websocket_url": "ws://24.144.90.5:8001",
+    "rest_api_url": "http://24.144.90.5:8000",
+    "description": "Backend server connection details"
   }
 }

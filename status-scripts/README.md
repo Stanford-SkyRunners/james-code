@@ -1,222 +1,383 @@
 # Raspberry Pi Status Monitor
 
-Automatically sends email notifications when your Raspberry Pi connects to WiFi, followed by periodic status updates every 5 minutes.
+Monitors system health and backend connectivity, sending email notifications on WiFi connection and periodic status updates.
 
 ## Features
 
-- Sends email notification immediately upon WiFi connection
-- Includes network details (SSID, IP address, signal strength)
-- Sends comprehensive status updates every 5 minutes including:
-  - CPU temperature and usage
-  - Memory usage
-  - Disk usage
-  - System uptime
-  - Load averages
-  - Network information
-- Automatically starts on boot
-- Restarts automatically if it crashes
+- **WiFi Connection Monitoring** - Waits for WiFi on boot, sends immediate notification
+- **Periodic Status Updates** - Sends comprehensive system report every 5 minutes
+- **Backend Connection Tracking** - Monitors both WebSocket and REST API connections
+- **System Metrics** - CPU temperature, usage, memory, disk space, uptime
+- **Email Notifications** - Gmail SMTP integration for status reports
 
-## Files
+## What Gets Monitored
 
-- `status_monitor.py` - Main Python script
-- `status-monitor.service` - Systemd service file
-- `config.json.example` - Example configuration file
-- `install.sh` - Installation script
-- `README.md` - This file
+### Network Information
+- WiFi SSID
+- IP Address
+- Signal Strength
+
+### Backend Connection Status
+- **WebSocket** - Reads from `/home/james/skyrunners/websocket_status.json`
+  - Connection state (Connected/Disconnected)
+  - Last update timestamp
+  - Last message received
+  - Any errors
+- **REST API** - Live health check to backend
+  - Tests `GET /health` endpoint
+  - Connection state
+
+### System Metrics
+- **CPU Temperature** - From `vcgencmd`
+- **CPU Usage** - Percentage from `top`
+- **Load Average** - 1m, 5m, 15m averages
+- **Memory Usage** - Total, used, available
+- **Disk Usage** - Total, used, available, percentage
+- **System Uptime** - How long Pi has been running
 
 ## Installation
 
-### 1. Configure Email Settings
+### Quick Setup (Recommended)
 
-First, copy the example configuration file:
-
+Run the automated setup script:
 ```bash
-cd /home/james/status-scripts
-cp config.json.example config.json
-nano config.json
+cd /home/james/skyrunners/status-scripts
+sudo ./setup-status-monitor.sh
 ```
 
-Edit `config.json` with your email settings:
+This will:
+1. Make the script executable
+2. Install the systemd service
+3. Enable auto-start on boot (waits for network)
+4. Start the service immediately
+
+### Manual Installation
+
+1. Make script executable:
+```bash
+chmod +x /home/james/skyrunners/status-scripts/status_monitor.py
+```
+
+2. Install systemd service:
+```bash
+sudo cp /home/james/skyrunners/services/status-monitor.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable status-monitor.service
+sudo systemctl start status-monitor.service
+```
+
+## Configuration
+
+Edit `/home/james/skyrunners/config.json`:
 
 ```json
 {
   "email": {
     "smtp_server": "smtp.gmail.com",
     "smtp_port": 587,
-    "from_address": "your-email@gmail.com",
-    "to_address": "recipient@example.com",
+    "from_address": "skyrunnersstatus@gmail.com",
+    "to_address": "skyrunnersstatus@gmail.com",
     "password": "your-app-password-here"
+  },
+  "backend": {
+    "websocket_url": "ws://24.144.90.5:8001",
+    "rest_api_url": "http://24.144.90.5:8000"
   }
 }
 ```
 
-#### For Gmail Users:
+### Gmail App Password Setup
 
-1. Enable 2-factor authentication on your Google account
-2. Generate an App Password at: https://myaccount.google.com/apppasswords
-3. Use the generated app password in the config file (not your regular password)
+1. Go to your Google Account settings
+2. Security → 2-Step Verification (must be enabled)
+3. App Passwords → Generate new app password
+4. Select "Mail" and "Other (Custom name)"
+5. Copy the 16-character password to config.json
 
-#### For Other Email Providers:
+## Service Management
 
-Update `smtp_server` and `smtp_port` according to your provider:
-- **Outlook/Hotmail**: `smtp.office365.com`, port `587`
-- **Yahoo**: `smtp.mail.yahoo.com`, port `587`
-- **Custom SMTP**: Use your provider's settings
-
-### 2. Run the Installation Script
-
-Make the install script executable and run it:
-
+### Check Status
 ```bash
-chmod +x install.sh
-./install.sh
+sudo systemctl status status-monitor.service
 ```
 
-The script will:
-- Make the Python script executable
-- Install the systemd service
-- Enable auto-start on boot
-- Start the service immediately
-
-### 3. Verify Installation
-
-Check that the service is running:
-
+### View Live Logs
 ```bash
-sudo systemctl status status-monitor
+sudo journalctl -u status-monitor.service -f
 ```
 
-You should receive your first email shortly!
-
-## Usage
-
-### View Real-time Logs
-
+### View Recent Logs
 ```bash
-# Using journalctl (systemd logs)
-sudo journalctl -u status-monitor -f
-
-# Using the log file
-tail -f /home/james/status-scripts/status_monitor.log
+sudo journalctl -u status-monitor.service -n 50
 ```
 
-### Control the Service
-
+### Restart Service
 ```bash
-# Start the service
-sudo systemctl start status-monitor
-
-# Stop the service
-sudo systemctl stop status-monitor
-
-# Restart the service
-sudo systemctl restart status-monitor
-
-# Check service status
-sudo systemctl status status-monitor
-
-# Disable auto-start on boot
-sudo systemctl disable status-monitor
-
-# Enable auto-start on boot
-sudo systemctl enable status-monitor
+sudo systemctl restart status-monitor.service
 ```
 
-### Update Configuration
+### Stop Service
+```bash
+sudo systemctl stop status-monitor.service
+```
 
-If you need to change email settings:
+### Disable Auto-start
+```bash
+sudo systemctl disable status-monitor.service
+```
 
-1. Edit the config file:
-   ```bash
-   nano /home/james/status-scripts/config.json
-   ```
+## Email Notifications
 
-2. Restart the service:
-   ```bash
-   sudo systemctl restart status-monitor
-   ```
+### Initial Connection Email
+
+Sent immediately when WiFi connects:
+
+```
+Subject: 🟢 Raspberry Pi Connected to WiFi: YourNetwork
+
+Raspberry Pi WiFi Connection Notification
+==========================================
+
+Your Raspberry Pi has successfully connected to WiFi!
+
+Connection Details:
+-------------------
+• Network (SSID): YourNetwork
+• IP Address: 192.168.1.100
+• Signal Strength: -45 dBm
+• Connection Time: 2025-10-24 00:17:30
+
+Backend Connection:
+-------------------
+• WebSocket: ✅ Connected
+• REST API: ✅ Connected
+• Last Update: 2025-10-24T00:15:31.286353
+• Last Message: connection
+
+Status monitoring is now active. You will receive status updates every 5 minutes.
+```
+
+### Periodic Status Email
+
+Sent every 5 minutes:
+
+```
+Subject: 📊 Pi Status Update - YourNetwork
+
+Raspberry Pi Status Update
+==========================
+Report Time: 2025-10-24 00:22:30
+Script Started: 2025-10-24 00:17:30
+
+Network Information:
+--------------------
+• Network (SSID): YourNetwork
+• IP Address: 192.168.1.100
+• Signal Strength: -45 dBm
+
+Backend Connection:
+-------------------
+• WebSocket: ✅ Connected
+• REST API: ✅ Connected
+• Last Update: 2025-10-24T00:20:56.590392
+• Last Message: waypoint_created
+System Metrics:
+---------------
+• CPU Temperature: 48.7°C
+• CPU Usage: 2.3%
+• Load Average (1m, 5m, 15m): 0.15, 0.20, 0.18
+
+Memory:
+-------
+• Total: 1.8G
+• Used: 456M
+• Available: 1.2G
+
+Disk Usage (/):
+---------------
+• Total: 30G
+• Used: 8.5G (29%)
+• Available: 20G
+
+System:
+-------
+• Uptime: up 2 days, 5 hours
+```
+
+## How It Works
+
+### On Boot Sequence
+1. Service starts after `network-online.target`
+2. Script waits for WiFi connection (pings 8.8.8.8)
+3. Once connected, sends initial connection email
+4. Enters monitoring loop
+
+### Monitoring Loop
+1. Wait 5 minutes
+2. Collect system metrics
+3. Check backend connection status
+4. Format and send status email
+5. Repeat
+
+### Backend Status Checking
+
+**WebSocket Status:**
+- Reads from `/home/james/skyrunners/websocket_status.json`
+- File is auto-generated by `websocket_client.py`
+- Shows last connection state and message
+
+**REST API Status:**
+- Performs live HTTP GET request to `/health`
+- 3-second timeout
+- Shows current connection state
 
 ## Troubleshooting
 
-### No emails being sent
+### Emails Not Sending
 
-1. Check the logs:
-   ```bash
-   sudo journalctl -u status-monitor -n 50
-   ```
+**Check Gmail credentials:**
+```bash
+# View logs for SMTP errors
+sudo journalctl -u status-monitor.service -n 50 | grep -i error
+```
 
-2. Verify your email credentials in `config.json`
+Common issues:
+- Wrong app password in config.json
+- 2-Step Verification not enabled
+- SMTP blocked by firewall
 
-3. For Gmail, ensure you're using an App Password, not your regular password
+**Test email manually:**
+```bash
+# Stop service
+sudo systemctl stop status-monitor.service
 
-### Service not starting
+# Run manually to see output
+python3 /home/james/skyrunners/status-scripts/status_monitor.py
 
-1. Check for Python errors:
-   ```bash
-   python3 /home/james/status-scripts/status_monitor.py
-   ```
+# Ctrl+C to stop
+# Restart service
+sudo systemctl start status-monitor.service
+```
 
-2. Verify config.json exists and has correct format
+### Backend Status Not Showing
 
-### WiFi not detected
+**WebSocket status file missing:**
+```bash
+# Check if file exists
+ls -la /home/james/skyrunners/websocket_status.json
 
-1. Verify your WiFi interface name:
-   ```bash
-   iwconfig
-   ```
+# Check if websocket client is running
+sudo systemctl status vantir-websocket-client.service
+```
 
-2. If your WiFi interface is not `wlan0`, you may need to edit the script
+**REST API check failing:**
+```bash
+# Test manually
+curl http://YOUR_SERVER_IP:8000/health
+
+# Check if server is reachable
+ping YOUR_SERVER_IP
+```
+
+### Service Not Starting on Boot
+
+**Check service is enabled:**
+```bash
+sudo systemctl is-enabled status-monitor.service
+```
+
+**Check service logs:**
+```bash
+sudo journalctl -u status-monitor.service -b
+```
+
+**Verify config file exists:**
+```bash
+cat /home/james/skyrunners/config.json
+```
+
+### WiFi Not Detected
+
+**Check WiFi interface:**
+```bash
+iwconfig
+```
+
+**Check if connected:**
+```bash
+iwgetid -r  # Shows SSID
+hostname -I  # Shows IP
+```
+
+## Files
+
+- `status_monitor.py` - Main monitoring script
+- `setup-status-monitor.sh` - Automated installation script
+- `../services/status-monitor.service` - Systemd service file
+- `../config.json` - Configuration (email + backend)
+- `../websocket_status.json` - WebSocket status (read-only for this script)
 
 ## Customization
 
-### Change Update Frequency
+### Change Email Frequency
 
-Edit `status_monitor.py` and modify this line:
-
+Edit the interval in `status_monitor.py` (line 326):
 ```python
-time.sleep(300)  # 5 minutes = 300 seconds
+interval = 300  # 5 minutes = 300 seconds
 ```
 
-Change `300` to your desired interval in seconds:
+Change to desired seconds:
 - 1 minute = 60
 - 10 minutes = 600
 - 30 minutes = 1800
+- 1 hour = 3600
 
-Then restart the service:
+Then restart:
 ```bash
-sudo systemctl restart status-monitor
+sudo systemctl restart status-monitor.service
 ```
 
-### Add More Metrics
+### Add Custom Metrics
 
-You can add custom metrics by editing the `get_system_metrics()` function in `status_monitor.py`.
-
-## Uninstallation
-
-To completely remove the status monitor:
-
-```bash
-# Stop and disable the service
-sudo systemctl stop status-monitor
-sudo systemctl disable status-monitor
-
-# Remove the service file
-sudo rm /etc/systemd/system/status-monitor.service
-
-# Reload systemd
-sudo systemctl daemon-reload
-
-# Optionally, remove the scripts directory
-rm -rf /home/james/status-scripts
+Edit `get_system_metrics()` method in `status_monitor.py`:
+```python
+def get_system_metrics(self):
+    metrics = {}
+    # Add your custom metric here
+    metrics['my_metric'] = get_my_custom_data()
+    return metrics
 ```
 
-## Security Notes
+Then update the email template in `format_status_email()`.
 
-- Keep your `config.json` file secure - it contains your email password
-- The config file has restricted permissions (only readable by you)
-- Consider using a dedicated email account for system notifications
-- Never commit `config.json` to version control
+### Customize Email Format
 
-## License
+Edit `format_status_email()` or `format_connection_email()` methods to change email content and formatting.
 
-Free to use and modify for personal use.
+## Dependencies
+
+All dependencies are part of Python standard library:
+- `smtplib` - SMTP email
+- `subprocess` - System commands
+- `json` - Config parsing
+- `email.mime` - Email formatting
+
+External commands used:
+- `iwgetid` - Get WiFi SSID
+- `iwconfig` - Get signal strength
+- `hostname` - Get IP address
+- `vcgencmd` - Get CPU temperature (Raspberry Pi specific)
+- `top` - CPU usage
+- `free` - Memory info
+- `df` - Disk usage
+- `uptime` - System uptime
+- `ping` - Network connectivity test
+
+## Next Steps
+
+After installation:
+1. Reboot to test boot sequence: `sudo reboot`
+2. Check email for WiFi connection notification
+3. Verify service is running: `sudo systemctl status status-monitor`
+4. Wait 5 minutes for first status update email
+5. Monitor logs if needed: `sudo journalctl -u status-monitor -f`

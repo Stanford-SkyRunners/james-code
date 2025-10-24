@@ -68,6 +68,54 @@ class StatusMonitor:
                 'signal_strength': f'Error: {str(e)}'
             }
 
+    def get_backend_status(self):
+        """Get WebSocket and REST API backend connection status."""
+        status_file = '/home/james/skyrunners/websocket_status.json'
+
+        # Check WebSocket status from file
+        websocket_status = {
+            'connected': False,
+            'last_update': 'Never',
+            'last_message': 'None',
+            'error': None
+        }
+
+        try:
+            if os.path.exists(status_file):
+                with open(status_file, 'r') as f:
+                    status = json.load(f)
+                    websocket_status = {
+                        'connected': status.get('connected', False),
+                        'last_update': status.get('last_update', 'Never'),
+                        'last_message': status.get('last_message', 'None'),
+                        'error': status.get('error', None)
+                    }
+            else:
+                websocket_status['error'] = 'Status file not found'
+        except Exception as e:
+            websocket_status['error'] = str(e)
+
+        # Check REST API status by pinging health endpoint
+        rest_api_status = {
+            'connected': False,
+            'error': None
+        }
+
+        try:
+            rest_api_url = self.config.get('backend', {}).get('rest_api_url', 'http://24.144.90.5:8000')
+            import urllib.request
+            req = urllib.request.Request(f"{rest_api_url}/health", method='GET')
+            with urllib.request.urlopen(req, timeout=3) as response:
+                if response.status == 200:
+                    rest_api_status['connected'] = True
+        except Exception as e:
+            rest_api_status['error'] = str(e)
+
+        return {
+            'websocket': websocket_status,
+            'rest_api': rest_api_status
+        }
+
     def get_system_metrics(self):
         """Collect comprehensive system metrics."""
         metrics = {}
@@ -148,6 +196,11 @@ class StatusMonitor:
         """Format the WiFi connection notification email."""
         subject = f"🟢 Raspberry Pi Connected to WiFi: {wifi_info['ssid']}"
 
+        # Get backend status
+        backend_status = self.get_backend_status()
+        backend_icon = "✅" if backend_status['websocket']['connected'] else "❌"
+        backend_text = "Connected" if backend_status['websocket']['connected'] else "Disconnected"
+
         body = f"""
 Raspberry Pi WiFi Connection Notification
 ==========================================
@@ -161,6 +214,14 @@ Connection Details:
 • Signal Strength: {wifi_info['signal_strength']}
 • Connection Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
+Backend Connection:
+-------------------
+• WebSocket: {backend_icon} {backend_text}
+• REST API: {"✅ Connected" if backend_status['rest_api']['connected'] else "❌ Disconnected"}
+• Last Update: {backend_status['websocket']['last_update']}
+• Last Message: {backend_status['websocket']['last_message']}
+{f"• Error: {backend_status['websocket']['error']}" if backend_status['websocket']['error'] else ""}
+
 Status monitoring is now active. You will receive status updates every 5 minutes.
 
 ---
@@ -171,6 +232,11 @@ Raspberry Pi Status Monitor
     def format_status_email(self, wifi_info, metrics):
         """Format the periodic status update email."""
         subject = f"📊 Pi Status Update - {wifi_info['ssid']}"
+
+        # Get backend status
+        backend_status = self.get_backend_status()
+        backend_icon = "✅" if backend_status['websocket']['connected'] else "❌"
+        backend_text = "Connected" if backend_status['websocket']['connected'] else "Disconnected"
 
         body = f"""
 Raspberry Pi Status Update
@@ -184,6 +250,13 @@ Network Information:
 • IP Address: {wifi_info['ip_address']}
 • Signal Strength: {wifi_info['signal_strength']}
 
+Backend Connection:
+-------------------
+• WebSocket: {backend_icon} {backend_text}
+• REST API: {"✅ Connected" if backend_status['rest_api']['connected'] else "❌ Disconnected"}
+• Last Update: {backend_status['websocket']['last_update']}
+• Last Message: {backend_status['websocket']['last_message']}
+{f"• Error: {backend_status['websocket']['error']}\n" if backend_status['websocket']['error'] else ""}
 System Metrics:
 ---------------
 • CPU Temperature: {metrics.get('cpu_temp', 'N/A')}
