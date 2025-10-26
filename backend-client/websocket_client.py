@@ -13,6 +13,11 @@ from datetime import datetime
 import os
 import aiohttp
 import socket
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from gpiozero import LED
+import time
 
 # Load configuration
 CONFIG_FILE = '/home/james/skyrunners/config.json'
@@ -62,7 +67,7 @@ def update_status(connected, last_message=None, error=None):
         print(f"Error updating status file: {e}")
 
 class VantirClient:
-    def __init__(self, websocket_url, rest_api_url):
+    def __init__(self, websocket_url, rest_api_url, config):
         self.websocket_url = websocket_url
         self.rest_api_url = rest_api_url
         self.websocket = None
@@ -71,6 +76,21 @@ class VantirClient:
         self.session = None
         self.heartbeat_task = None
         self.heartbeat_interval = 30  # Send heartbeat every 30 seconds
+        self.config = config
+
+        # Initialize LED if enabled
+        self.led = None
+        led_config = config.get('led', {})
+        if led_config.get('enabled', False):
+            try:
+                gpio_pin = led_config.get('gpio_pin', 17)
+                # active_high=False means LED is wired active low (LOW = ON)
+                self.led = LED(gpio_pin, active_high=False)
+                self.led.off()  # Ensure LED starts in OFF state
+                print(f"✓ LED initialized on GPIO pin {gpio_pin} (active low)")
+            except Exception as e:
+                print(f"⚠️  Failed to initialize LED: {e}")
+                self.led = None
 
     async def check_health(self):
         """Check backend health status."""
@@ -78,7 +98,7 @@ class VantirClient:
             if not self.session:
                 self.session = aiohttp.ClientSession()
 
-            url = f"{self.rest_api_url}/health"
+            url = f"{self.rest_api_url}/api/health"
             async with self.session.get(url) as response:
                 if response.status == 200:
                     print(f"✓ Backend health check passed")
@@ -102,7 +122,7 @@ class VantirClient:
             if not self.session:
                 self.session = aiohttp.ClientSession()
 
-            url = f"{self.rest_api_url}/points"
+            url = f"{self.rest_api_url}/api/points"
             async with self.session.get(url) as response:
                 if response.status == 200:
                     waypoints = await response.json()
@@ -120,6 +140,56 @@ class VantirClient:
         # Backend doesn't have /api/devices/status endpoint
         # Keeping this method for future use if needed
         pass
+
+    async def blink_led(self, duration=None):
+        """
+        Turn on LED for specified duration, then turn it off.
+
+        Args:
+            duration: Time in seconds to keep LED on (defaults to config value)
+        """
+        if not self.led:
+            return
+
+        try:
+            if duration is None:
+                duration = self.config.get('led', {}).get('blink_duration', 3)
+
+            print(f"💡 Turning LED ON for {duration} seconds")
+            self.led.on()
+            await asyncio.sleep(duration)
+            self.led.off()
+            print(f"💡 LED OFF")
+        except Exception as e:
+            print(f"⚠️  LED control error: {e}")
+
+    def send_email(self, subject, body):
+        """Send email using SMTP configuration from config.json."""
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = self.config['email']['from_address']
+            msg['To'] = self.config['email']['to_address']
+            msg['Subject'] = subject
+
+            msg.attach(MIMEText(body, 'plain'))
+
+            # Connect to SMTP server
+            server = smtplib.SMTP(self.config['email']['smtp_server'],
+                                 self.config['email']['smtp_port'])
+            server.starttls()
+            server.login(self.config['email']['from_address'],
+                        self.config['email']['password'])
+
+            # Send email
+            server.send_message(msg)
+            server.quit()
+
+            print(f"✅ Email sent successfully: {subject}")
+            return True
+
+        except Exception as e:
+            print(f"❌ Error sending email: {str(e)}")
+            return False
 
     async def handle_message(self, message):
         """Handle incoming WebSocket messages."""
@@ -166,6 +236,49 @@ class VantirClient:
             elif msg_type == 'client_left':
                 client_id = data.get('clientId')
                 print(f"👋 Client left: {client_id}")
+                update_status(True, msg_type)
+
+            elif msg_type == 'send_test_email':
+                print(f"📧 TEST EMAIL REQUEST RECEIVED")
+                sender = data.get('sender', 'Frontend')
+                request_time = data.get('timestamp', datetime.now().isoformat())
+
+                # Turn on LED immediately (non-blocking)
+                asyncio.create_task(self.blink_led())
+
+                # Format email
+                subject = "🧪 Test Email from Raspberry Pi"
+                body = f"""
+Test Email Triggered from Frontend
+===================================
+
+This email was triggered by a button click in the frontend!
+
+Request Details:
+----------------
+• Sender: {sender}
+• Request Time: {request_time}
+• Device: {self.device_info['hostname']}
+• Device Type: {self.device_info['deviceType']}
+
+Communication Flow:
+-------------------
+1. Frontend button clicked ✅
+2. Frontend → Backend request sent ✅
+3. Backend → Raspberry Pi WebSocket message ✅
+4. Raspberry Pi → LED turned on ✅
+5. Raspberry Pi → Email sent ✅
+
+Your bidirectional communication is working perfectly!
+
+---
+Raspberry Pi WebSocket Client
+"""
+
+                # Send email in background (non-blocking)
+                loop = asyncio.get_event_loop()
+                loop.run_in_executor(None, self.send_email, subject, body)
+
                 update_status(True, msg_type)
 
             else:
@@ -235,6 +348,10 @@ class VantirClient:
         """Clean up resources."""
         if self.session and not self.session.closed:
             await self.session.close()
+        if self.led:
+            self.led.off()
+            self.led.close()
+            print("✓ LED cleaned up")
 
     def stop(self):
         """Stop the client and prevent reconnection."""
@@ -267,7 +384,7 @@ async def main():
     signal.signal(signal.SIGTERM, signal_handler)
 
     # Create and run client
-    client = VantirClient(websocket_url, rest_api_url)
+    client = VantirClient(websocket_url, rest_api_url, config)
 
     try:
         await client.connect_with_retry()

@@ -104,7 +104,7 @@ class StatusMonitor:
         try:
             rest_api_url = self.config.get('backend', {}).get('rest_api_url', 'http://24.144.90.5:8000')
             import urllib.request
-            req = urllib.request.Request(f"{rest_api_url}/health", method='GET')
+            req = urllib.request.Request(f"{rest_api_url}/api/health", method='GET')
             with urllib.request.urlopen(req, timeout=3) as response:
                 if response.status == 200:
                     rest_api_status['connected'] = True

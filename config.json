@@ -10,5 +10,11 @@
     "websocket_url": "ws://24.144.90.5:8001",
     "rest_api_url": "http://24.144.90.5:8000",
     "description": "Backend server connection details"
+  },
+  "led": {
+    "enabled": true,
+    "gpio_pin": 17,
+    "blink_duration": 3,
+    "description": "LED control settings. GPIO pin uses BCM numbering. Blink duration in seconds."
   }
 }
