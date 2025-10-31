@@ -20,8 +20,11 @@ from gpiozero import LED
 import time
 
 # Load configuration
-CONFIG_FILE = '/home/james/skyrunners/config.json'
-STATUS_FILE = '/home/james/skyrunners/websocket_status.json'
+# Get the repository root directory (parent of backend-client)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+CONFIG_FILE = os.path.join(REPO_ROOT, 'config.json')
+STATUS_FILE = os.path.join(REPO_ROOT, 'websocket_status.json')
 
 def load_config():
     """Load configuration from JSON file."""

@@ -4,6 +4,11 @@
 
 set -e
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get the repository root (parent of status-scripts)
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+
 echo "=========================================="
 echo "Raspberry Pi Status Monitor Installation"
 echo "=========================================="
@@ -12,28 +17,50 @@ echo ""
 # Check if running as root
 if [ "$EUID" -eq 0 ]; then
     echo "Error: Please do not run this script as root"
-    echo "Run it as your normal user: ./install.sh"
+    echo "Run it as your normal user: ./setup-status-monitor.sh"
     exit 1
 fi
 
 # Check if config.json exists
-if [ ! -f "/home/james/skyrunners/config.json" ]; then
+if [ ! -f "$REPO_ROOT/config.json" ]; then
     echo "Error: config.json not found!"
-    echo "Please create config.json from the template:"
-    echo "  cp config.json.example config.json"
-    echo "  nano config.json"
+    echo "Please create and configure config.json first:"
+    echo "  nano $REPO_ROOT/config.json"
     echo ""
-    echo "Then edit it with your email settings."
+    echo "See README.md for configuration instructions."
     exit 1
 fi
 
 # Make the Python script executable
 echo "Making status_monitor.py executable..."
-chmod +x /home/james/skyrunners/status-scripts/status_monitor.py
+chmod +x "$SCRIPT_DIR/status_monitor.py"
+
+# Generate systemd service file with correct paths
+echo "Generating systemd service file..."
+cat > /tmp/status-monitor.service <<EOF
+[Unit]
+Description=Raspberry Pi Status Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=$REPO_ROOT
+ExecStart=/usr/bin/python3 -u $SCRIPT_DIR/status_monitor.py
+Restart=always
+RestartSec=10
+StandardOutput=append:$REPO_ROOT/status_monitor.log
+StandardError=append:$REPO_ROOT/status_monitor.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
 
 # Copy systemd service file
 echo "Installing systemd service..."
-sudo cp /home/james/skyrunners/services/status-monitor.service /etc/systemd/system/
+sudo cp /tmp/status-monitor.service /etc/systemd/system/
+rm /tmp/status-monitor.service
 
 # Reload systemd
 echo "Reloading systemd..."
@@ -60,7 +87,7 @@ echo "Useful commands:"
 echo "=========================================="
 echo "Check status:    sudo systemctl status status-monitor"
 echo "View logs:       sudo journalctl -u status-monitor -f"
-echo "View log file:   tail -f /home/james/skyrunners/status_monitor.log"
+echo "View log file:   tail -f $REPO_ROOT/status_monitor.log"
 echo "Stop service:    sudo systemctl stop status-monitor"
 echo "Restart service: sudo systemctl restart status-monitor"
 echo "Disable service: sudo systemctl disable status-monitor"

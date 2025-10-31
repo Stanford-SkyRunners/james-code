@@ -16,10 +16,17 @@ import json
 
 
 class StatusMonitor:
-    def __init__(self, config_file='/home/james/skyrunners/config.json'):
+    def __init__(self, config_file=None):
         """Initialize the status monitor with configuration."""
+        # Get the repository root directory (parent of status-scripts)
+        if config_file is None:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            repo_root = os.path.dirname(script_dir)
+            config_file = os.path.join(repo_root, 'config.json')
         self.config = self.load_config(config_file)
         self.startup_time = datetime.now()
+        # Store repo root for other file paths
+        self.repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     def load_config(self, config_file):
         """Load configuration from JSON file."""
@@ -70,7 +77,7 @@ class StatusMonitor:
 
     def get_backend_status(self):
         """Get WebSocket and REST API backend connection status."""
-        status_file = '/home/james/skyrunners/websocket_status.json'
+        status_file = os.path.join(self.repo_root, 'websocket_status.json')
 
         # Check WebSocket status from file
         websocket_status = {
