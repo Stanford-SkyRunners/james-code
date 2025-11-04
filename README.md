@@ -72,7 +72,6 @@ scp -r skyrunners/ pi@<raspberry-pi-ip>:~/
 Create your `.env` file from the template:
 
 ```bash
-cd ~/skyrunners
 cp .env.example .env
 nano .env
 ```
