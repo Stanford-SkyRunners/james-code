@@ -21,6 +21,10 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
+# Install Python dependencies
+echo "📦 Installing Python dependencies..."
+pip3 install python-dotenv --break-system-packages
+
 # Check if config.json exists
 if [ ! -f "$REPO_ROOT/config.json" ]; then
     echo "Error: config.json not found!"
@@ -28,6 +32,16 @@ if [ ! -f "$REPO_ROOT/config.json" ]; then
     echo "  nano $REPO_ROOT/config.json"
     echo ""
     echo "See README.md for configuration instructions."
+    exit 1
+fi
+
+# Check if .env exists
+if [ ! -f "$REPO_ROOT/.env" ]; then
+    echo "Error: .env file not found!"
+    echo "Please create .env file with your email password:"
+    echo "  cp $REPO_ROOT/.env.example $REPO_ROOT/.env"
+    echo "  nano $REPO_ROOT/.env"
+    echo ""
     exit 1
 fi
 

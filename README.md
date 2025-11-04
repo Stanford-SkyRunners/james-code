@@ -27,7 +27,9 @@ Before you begin, make sure you have:
 
 ```
 ~/skyrunners/
-├── config.json                      # Main configuration (you'll edit this)
+├── .env                             # Email credentials (you'll create this)
+├── .env.example                     # Template for .env file
+├── config.json                      # Main configuration (backend URLs, SMTP settings)
 ├── websocket_status.json            # Auto-generated connection status
 ├── status_monitor.log               # Auto-generated log file
 │
@@ -65,24 +67,53 @@ scp -r skyrunners/ pi@<raspberry-pi-ip>:~/
 
 ---
 
-## Step 2: Configure Settings
+## Step 2: Configure Environment Variables
 
-Edit the configuration file:
+Create your `.env` file from the template:
+
+```bash
+cd ~/skyrunners
+cp .env.example .env
+nano .env
+```
+
+Update with your email settings:
+
+```bash
+# Email configuration for status notifications
+EMAIL_PASSWORD=your-16-char-app-password
+EMAIL_FROM_ADDRESS=your-email@gmail.com
+EMAIL_TO_ADDRESS=your-email@gmail.com
+```
+
+### Gmail App Password Setup
+
+1. Go to https://myaccount.google.com/
+2. Navigate to **Security** → **2-Step Verification** (enable if not already)
+3. Go to **App Passwords** → **Generate new**
+4. Select "Mail" and "Other (Custom name)"
+5. Copy the 16-character password (no spaces)
+6. Paste into `.env` as `EMAIL_PASSWORD`
+
+**For other email providers:**
+- Outlook: Update `smtp_server` in `config.json` to `smtp.office365.com`, port `587`
+- Yahoo: Update `smtp_server` in `config.json` to `smtp.mail.yahoo.com`, port `587`
+
+---
+
+## Step 3: Configure Backend Settings (Optional)
+
+The backend server URLs are already set in `config.json`. Only edit if your backend server IP differs:
 
 ```bash
 nano ~/skyrunners/config.json
 ```
 
-Update with your settings:
-
 ```json
 {
   "email": {
     "smtp_server": "smtp.gmail.com",
-    "smtp_port": 587,
-    "from_address": "your-email@gmail.com",
-    "to_address": "your-email@gmail.com",
-    "password": "your-16-char-app-password"
+    "smtp_port": 587
   },
   "backend": {
     "websocket_url": "ws://YOUR_SERVER_IP:8001",
@@ -102,39 +133,26 @@ Update with your settings:
 - Use port **8000** for REST API
 - LED control is optional (set `enabled: true` to use)
 
-### Gmail App Password Setup
-
-1. Go to https://myaccount.google.com/
-2. Navigate to **Security** → **2-Step Verification** (enable if not already)
-3. Go to **App Passwords** → **Generate new**
-4. Select "Mail" and "Other (Custom name)"
-5. Copy the 16-character password (no spaces)
-6. Paste into `config.json` under `email.password`
-
-**For other email providers:**
-- Outlook: `smtp.office365.com`, port `587`
-- Yahoo: `smtp.mail.yahoo.com`, port `587`
-
 ---
 
-## Step 3: Install Python Dependencies
+## Step 4: Install Python Dependencies
 
 Install required Python packages:
 
 ```bash
-pip3 install websockets aiohttp gpiozero --break-system-packages
+pip3 install websockets aiohttp gpiozero python-dotenv --break-system-packages
 ```
 
 > **Note:** The `--break-system-packages` flag is required on modern Raspberry Pi OS.
 
 Verify installation:
 ```bash
-python3 -c "import websockets, aiohttp; print('✅ Dependencies installed')"
+python3 -c "import websockets, aiohttp, dotenv; print('✅ Dependencies installed')"
 ```
 
 ---
 
-## Step 4: Install WebSocket Client Service
+## Step 5: Install WebSocket Client Service
 
 Run the setup script:
 
@@ -184,7 +202,7 @@ Press Ctrl+C to exit logs.
 
 ---
 
-## Step 5: Install Status Monitor Service
+## Step 6: Install Status Monitor Service
 
 Run the setup script:
 
@@ -209,9 +227,9 @@ You should see it waiting for network, then connecting and sending the first ema
 
 ---
 
-## Step 6: Test Your Setup
+## Step 7: Test Your Setup
 
-### 6.1 Check WebSocket Connection
+### 7.1 Check WebSocket Connection
 
 View connection status:
 ```bash
@@ -228,7 +246,7 @@ Should show:
 }
 ```
 
-### 6.2 Test REST API Connection
+### 7.2 Test REST API Connection
 
 ```bash
 # Health check
@@ -241,7 +259,7 @@ curl http://YOUR_SERVER_IP:8000/health
 curl http://YOUR_SERVER_IP:8000/api/points
 ```
 
-### 6.3 Check Email Notifications
+### 7.3 Check Email Notifications
 
 Within 1-2 minutes of starting the status monitor, you should receive an email like:
 
@@ -264,7 +282,7 @@ Backend Connection:
 Status monitoring is now active. You will receive status updates every 5 minutes.
 ```
 
-### 6.4 Test Waypoint Reception
+### 7.4 Test Waypoint Reception
 
 1. Open your frontend application
 2. Create a new waypoint on the map
@@ -285,7 +303,7 @@ You should see:
 
 ---
 
-## Step 7: Reboot Test
+## Step 8: Reboot Test
 
 Test that everything auto-starts on boot:
 
@@ -499,7 +517,7 @@ The WebSocket client has automatic reconnection with exponential backoff:
 
 **Reinstall packages:**
 ```bash
-pip3 install websockets aiohttp gpiozero --break-system-packages --force-reinstall
+pip3 install websockets aiohttp gpiozero python-dotenv --break-system-packages --force-reinstall
 ```
 
 **Verify installation:**
@@ -507,6 +525,7 @@ pip3 install websockets aiohttp gpiozero --break-system-packages --force-reinsta
 python3 -c "import websockets; print('websockets OK')"
 python3 -c "import aiohttp; print('aiohttp OK')"
 python3 -c "import gpiozero; print('gpiozero OK')"
+python3 -c "import dotenv; print('python-dotenv OK')"
 ```
 
 ---
@@ -579,7 +598,9 @@ Wire the LED:
 
 ```
 ~/skyrunners/
-├── config.json                      # Main configuration
+├── .env                             # Email credentials (you create this)
+├── .env.example                     # Template for .env file
+├── config.json                      # Main configuration (backend URLs, SMTP)
 ├── websocket_status.json            # Auto-generated status file
 ├── status_monitor.log               # Auto-generated log file
 │
@@ -693,10 +714,11 @@ Now that setup is complete:
 ## Complete Setup Checklist
 
 - [ ] Repository cloned to `~/skyrunners`
-- [ ] `config.json` configured with email settings
-- [ ] `config.json` configured with backend server IP
-- [ ] Gmail App Password created and added
-- [ ] Python dependencies installed (`websockets`, `aiohttp`, `gpiozero`)
+- [ ] `.env` file created from `.env.example`
+- [ ] `.env` configured with email credentials
+- [ ] `config.json` configured with backend server IP (if needed)
+- [ ] Gmail App Password created and added to `.env`
+- [ ] Python dependencies installed (`websockets`, `aiohttp`, `gpiozero`, `python-dotenv`)
 - [ ] WebSocket client service installed and running
 - [ ] Status monitor service installed and running
 - [ ] WebSocket connection verified (websocket_status.json shows connected)
@@ -726,6 +748,7 @@ sudo journalctl -xe
 **Check configuration:**
 ```bash
 cat ~/skyrunners/config.json
+cat ~/skyrunners/.env  # Check email settings
 ```
 
 **Check connection status:**

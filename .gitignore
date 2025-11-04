@@ -5,6 +5,9 @@
 status_monitor.log
 websocket_status.json
 
+# Environment variables with credentials
+.env
+
 # Python cache
 __pycache__/
 *.pyc

@@ -1,10 +1,7 @@
 {
   "email": {
     "smtp_server": "smtp.gmail.com",
-    "smtp_port": 587,
-    "from_address": "skyrunnersstatus@gmail.com",
-    "to_address": "skyrunnersstatus@gmail.com",
-    "password": "hzvw fkoh xtvh gwxf"
+    "smtp_port": 587
   },
   "backend": {
     "websocket_url": "ws://24.144.90.5:8001",

@@ -13,6 +13,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 import json
+from dotenv import load_dotenv
 
 
 class StatusMonitor:
@@ -23,10 +24,15 @@ class StatusMonitor:
             script_dir = os.path.dirname(os.path.abspath(__file__))
             repo_root = os.path.dirname(script_dir)
             config_file = os.path.join(repo_root, 'config.json')
-        self.config = self.load_config(config_file)
-        self.startup_time = datetime.now()
+
         # Store repo root for other file paths
         self.repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+        # Load environment variables from .env file
+        load_dotenv(os.path.join(self.repo_root, '.env'))
+
+        self.config = self.load_config(config_file)
+        self.startup_time = datetime.now()
 
     def load_config(self, config_file):
         """Load configuration from JSON file."""
@@ -292,11 +298,16 @@ Raspberry Pi Status Monitor
         return subject, body
 
     def send_email(self, subject, body):
-        """Send email using SMTP."""
+        """Send email using SMTP configuration from config.json and .env."""
         try:
+            # Get email credentials from environment variables, fallback to config for backward compatibility
+            from_address = os.getenv('EMAIL_FROM_ADDRESS', self.config['email'].get('from_address', ''))
+            to_address = os.getenv('EMAIL_TO_ADDRESS', self.config['email'].get('to_address', ''))
+            password = os.getenv('EMAIL_PASSWORD', self.config['email'].get('password', ''))
+
             msg = MIMEMultipart()
-            msg['From'] = self.config['email']['from_address']
-            msg['To'] = self.config['email']['to_address']
+            msg['From'] = from_address
+            msg['To'] = to_address
             msg['Subject'] = subject
 
             msg.attach(MIMEText(body, 'plain'))
@@ -305,8 +316,7 @@ Raspberry Pi Status Monitor
             server = smtplib.SMTP(self.config['email']['smtp_server'],
                                  self.config['email']['smtp_port'])
             server.starttls()
-            server.login(self.config['email']['from_address'],
-                        self.config['email']['password'])
+            server.login(from_address, password)
 
             # Send email
             server.send_message(msg)

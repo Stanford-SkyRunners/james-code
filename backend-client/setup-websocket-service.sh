@@ -19,7 +19,18 @@ fi
 
 # Install websockets library if not already installed
 echo "📦 Installing Python dependencies..."
-pip3 install websockets aiohttp
+pip3 install websockets aiohttp python-dotenv --break-system-packages
+
+# Check if .env exists
+if [ ! -f "$REPO_ROOT/.env" ]; then
+    echo "❌ Error: .env file not found!"
+    echo ""
+    echo "Please create .env file with your email password:"
+    echo "  cp $REPO_ROOT/.env.example $REPO_ROOT/.env"
+    echo "  nano $REPO_ROOT/.env"
+    echo ""
+    exit 1
+fi
 
 # Make the Python script executable
 echo "🔧 Making Python script executable..."

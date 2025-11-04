@@ -18,6 +18,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from gpiozero import LED
 import time
+from dotenv import load_dotenv
 
 # Load configuration
 # Get the repository root directory (parent of backend-client)
@@ -25,6 +26,9 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 CONFIG_FILE = os.path.join(REPO_ROOT, 'config.json')
 STATUS_FILE = os.path.join(REPO_ROOT, 'websocket_status.json')
+
+# Load environment variables from .env file
+load_dotenv(os.path.join(REPO_ROOT, '.env'))
 
 def load_config():
     """Load configuration from JSON file."""
@@ -167,11 +171,16 @@ class VantirClient:
             print(f"⚠️  LED control error: {e}")
 
     def send_email(self, subject, body):
-        """Send email using SMTP configuration from config.json."""
+        """Send email using SMTP configuration from config.json and .env."""
         try:
+            # Get email credentials from environment variables, fallback to config for backward compatibility
+            from_address = os.getenv('EMAIL_FROM_ADDRESS', self.config['email'].get('from_address', ''))
+            to_address = os.getenv('EMAIL_TO_ADDRESS', self.config['email'].get('to_address', ''))
+            password = os.getenv('EMAIL_PASSWORD', self.config['email'].get('password', ''))
+
             msg = MIMEMultipart()
-            msg['From'] = self.config['email']['from_address']
-            msg['To'] = self.config['email']['to_address']
+            msg['From'] = from_address
+            msg['To'] = to_address
             msg['Subject'] = subject
 
             msg.attach(MIMEText(body, 'plain'))
@@ -180,8 +189,7 @@ class VantirClient:
             server = smtplib.SMTP(self.config['email']['smtp_server'],
                                  self.config['email']['smtp_port'])
             server.starttls()
-            server.login(self.config['email']['from_address'],
-                        self.config['email']['password'])
+            server.login(from_address, password)
 
             # Send email
             server.send_message(msg)
