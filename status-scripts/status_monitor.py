@@ -47,6 +47,23 @@ class StatusMonitor:
             print(f"Error: Invalid JSON in configuration file: {config_file}")
             sys.exit(1)
 
+    def get_hostname(self):
+        """Get the Raspberry Pi hostname in user@hostname.local format."""
+        try:
+            # Get username
+            username_result = subprocess.run(['whoami'],
+                                           capture_output=True, text=True, timeout=5)
+            username = username_result.stdout.strip()
+
+            # Get hostname
+            hostname_result = subprocess.run(['hostname'],
+                                           capture_output=True, text=True, timeout=5)
+            hostname = hostname_result.stdout.strip()
+
+            return f"{username}@{hostname}.local"
+        except Exception as e:
+            return "Unknown"
+
     def get_wifi_info(self):
         """Get current WiFi connection information."""
         try:
@@ -207,7 +224,8 @@ class StatusMonitor:
 
     def format_connection_email(self, wifi_info):
         """Format the WiFi connection notification email."""
-        subject = f"🟢 Raspberry Pi Connected to WiFi: {wifi_info['ssid']}"
+        hostname = self.get_hostname()
+        subject = f"🟢 {hostname} Connected to WiFi: {wifi_info['ssid']}"
 
         # Get backend status
         backend_status = self.get_backend_status()
@@ -219,6 +237,10 @@ Raspberry Pi WiFi Connection Notification
 ==========================================
 
 Your Raspberry Pi has successfully connected to WiFi!
+
+Device Information:
+-------------------
+• Hostname: {hostname}
 
 Connection Details:
 -------------------
@@ -244,7 +266,8 @@ Raspberry Pi Status Monitor
 
     def format_status_email(self, wifi_info, metrics):
         """Format the periodic status update email."""
-        subject = f"📊 Pi Status Update - {wifi_info['ssid']}"
+        hostname = self.get_hostname()
+        subject = f"📊 {hostname} Status Update - {wifi_info['ssid']}"
 
         # Get backend status
         backend_status = self.get_backend_status()
@@ -256,6 +279,10 @@ Raspberry Pi Status Update
 ==========================
 Report Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 Script Started: {self.startup_time.strftime('%Y-%m-%d %H:%M:%S')}
+
+Device Information:
+-------------------
+• Hostname: {hostname}
 
 Network Information:
 --------------------
