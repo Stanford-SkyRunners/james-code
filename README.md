@@ -1,6 +1,6 @@
-# SkyRunners - Raspberry Pi Autonomous System
+# james-code - Raspberry Pi Autonomous System
 
-Complete setup guide for running the SkyRunners system on Raspberry Pi. Follow this guide top-to-bottom to get everything working.
+Complete setup guide for running the james-code system on Raspberry Pi. Follow this guide top-to-bottom to get everything working.
 
 ## What This Does
 
@@ -26,7 +26,7 @@ Before you begin, make sure you have:
 ## 📁 Project Structure
 
 ```
-~/skyrunners/
+~/james-code/
 ├── .env                             # Email credentials (you'll create this)
 ├── .env.example                     # Template for .env file
 ├── config.json                      # Main configuration (backend URLs, SMTP settings)
@@ -56,13 +56,13 @@ Clone or copy the repository to your Raspberry Pi:
 
 ```bash
 cd ~
-git clone <your-repository-url> skyrunners
-cd skyrunners
+git clone <your-repository-url> james-code
+cd james-code
 ```
 
 Or copy from another system:
 ```bash
-scp -r skyrunners/ pi@<raspberry-pi-ip>:~/
+scp -r james-code/ pi@<raspberry-pi-ip>:~/
 ```
 
 ---
@@ -320,7 +320,7 @@ After reboot (wait 2-3 minutes):
    ```
 3. ✅ Check connection status:
    ```bash
-   cat ~/skyrunners/websocket_status.json
+   cat ~/james-code/websocket_status.json
    ```
 
 ---
@@ -377,7 +377,7 @@ sudo systemctl restart status-monitor.service
 sudo systemctl stop status-monitor.service
 
 # View log file
-tail -f ~/skyrunners/status_monitor.log
+tail -f ~/james-code/status_monitor.log
 ```
 
 ### Quick Status Check
@@ -387,10 +387,10 @@ tail -f ~/skyrunners/status_monitor.log
 systemctl is-active vantir-websocket-client.service status-monitor.service
 
 # Check connection status file
-cat ~/skyrunners/websocket_status.json
+cat ~/james-code/websocket_status.json
 
 # Watch connection status in real-time
-watch -n 1 cat ~/skyrunners/websocket_status.json
+watch -n 1 cat ~/james-code/websocket_status.json
 ```
 
 ---
@@ -465,7 +465,7 @@ sudo journalctl -u status-monitor.service -n 50 | grep -i error
 sudo systemctl stop status-monitor.service
 
 # Run manually to see detailed output
-python3 ~/skyrunners/status-scripts/status_monitor.py
+python3 ~/james-code/status-scripts/status_monitor.py
 
 # Ctrl+C to stop, then restart service
 sudo systemctl start status-monitor.service
@@ -596,7 +596,7 @@ Wire the LED:
 ## File Locations
 
 ```
-~/skyrunners/
+~/james-code/
 ├── .env                             # Email credentials (you create this)
 ├── .env.example                     # Template for .env file
 ├── config.json                      # Main configuration (backend URLs, SMTP)
@@ -633,7 +633,7 @@ For computer vision and AprilTag detection, see:
 
 ```
 ┌─────────────────────────────────────────────┐
-│         Raspberry Pi (skyrunners)           │
+│         Raspberry Pi (james-code)           │
 ├─────────────────────────────────────────────┤
 │                                             │
 │  ┌──────────────────────────────────────┐  │
@@ -712,7 +712,7 @@ Now that setup is complete:
 
 ## Complete Setup Checklist
 
-- [ ] Repository cloned to `~/skyrunners`
+- [ ] Repository cloned to `~/james-code`
 - [ ] `.env` file created from `.env.example`
 - [ ] `.env` configured with email credentials
 - [ ] `config.json` configured with backend server IP (if needed)
@@ -746,13 +746,13 @@ sudo journalctl -xe
 
 **Check configuration:**
 ```bash
-cat ~/skyrunners/config.json
-cat ~/skyrunners/.env  # Check email settings
+cat ~/james-code/config.json
+cat ~/james-code/.env  # Check email settings
 ```
 
 **Check connection status:**
 ```bash
-cat ~/skyrunners/websocket_status.json
+cat ~/james-code/websocket_status.json
 ```
 
 ---
