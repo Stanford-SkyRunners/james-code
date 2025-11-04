@@ -105,7 +105,7 @@ EMAIL_TO_ADDRESS=your-email@gmail.com
 The backend server URLs are already set in `config.json`. Only edit if your backend server IP differs:
 
 ```bash
-nano ~/skyrunners/config.json
+nano ~/james-code/config.json
 ```
 
 ```json
@@ -156,7 +156,7 @@ python3 -c "import websockets, aiohttp, dotenv; print('✅ Dependencies installe
 Run the setup script:
 
 ```bash
-cd ~/skyrunners/backend-client
+cd ~/james-code/backend-client
 sudo ./setup-websocket-service.sh
 ```
 
@@ -206,7 +206,7 @@ Press Ctrl+C to exit logs.
 Run the setup script:
 
 ```bash
-cd ~/skyrunners/status-scripts
+cd ~/james-code/status-scripts
 ./setup-status-monitor.sh
 ```
 
@@ -232,7 +232,7 @@ You should see it waiting for network, then connecting and sending the first ema
 
 View connection status:
 ```bash
-cat ~/skyrunners/websocket_status.json
+cat ~/james-code/websocket_status.json
 ```
 
 Should show:
