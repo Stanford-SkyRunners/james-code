@@ -89,7 +89,7 @@ EMAIL_TO_ADDRESS=your-email@gmail.com
 
 1. Go to https://myaccount.google.com/
 2. Navigate to **Security** → **2-Step Verification** (enable if not already)
-3. Go to **App Passwords** → **Generate new**
+3. Go back, and in the search bar, enter: **App Passwords** → **Generate new**
 4. Select "Mail" and "Other (Custom name)"
 5. Copy the 16-character password (no spaces)
 6. Paste into `.env` as `EMAIL_PASSWORD`
