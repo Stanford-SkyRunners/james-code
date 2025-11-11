@@ -170,6 +170,43 @@ class VantirClient:
         # Keeping this method for future use if needed
         pass
 
+    def update_local_config_name(self, new_name):
+        """
+        Update the device name in local config.json.
+
+        This syncs the Pi's local config with the backend's authoritative name
+        (e.g., after user renames device via frontend).
+
+        Args:
+            new_name: The new device name from backend
+        """
+        try:
+            # Read current config
+            with open(CONFIG_FILE, 'r') as f:
+                config = json.load(f)
+
+            # Update name in device section
+            if 'device' not in config:
+                config['device'] = {}
+
+            old_name = config['device'].get('name', 'Unknown')
+            config['device']['name'] = new_name
+
+            # Write back to file
+            with open(CONFIG_FILE, 'w') as f:
+                json.dump(config, f, indent=2)
+
+            # Update in-memory device info
+            self.device_info['name'] = new_name
+            self.config = config
+
+            print(f"✅ Updated local config: '{old_name}' → '{new_name}'")
+            return True
+
+        except Exception as e:
+            print(f"⚠️  Failed to update config.json: {e}")
+            return False
+
     async def blink_led(self, duration=None):
         """
         Turn on LED for specified duration, then turn it off.
@@ -285,6 +322,15 @@ class VantirClient:
             elif msg_type == 'registration_confirmed':
                 print(f"✅ Device registration confirmed by server")
                 self.registered = True
+
+                # Check if backend has renamed this device
+                backend_name = data.get('name')
+                if backend_name and backend_name != self.device_info['name']:
+                    print(f"📝 Backend reports device name: '{backend_name}'")
+                    print(f"   Local config has: '{self.device_info['name']}'")
+                    print(f"   Syncing local config to match backend...")
+                    self.update_local_config_name(backend_name)
+
                 update_status(True, msg_type)
 
             elif msg_type == 'ping':
