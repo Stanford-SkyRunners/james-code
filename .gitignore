@@ -4,6 +4,7 @@
 # Auto-generated files
 status_monitor.log
 websocket_status.json
+.device_id
 
 # Environment variables with credentials
 .env

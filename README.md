@@ -6,11 +6,13 @@ Complete setup guide for running the james-code system on Raspberry Pi. Follow t
 
 Your Raspberry Pi will:
 - ✅ Auto-connect to your backend server on boot
+- ✅ Register with persistent UUID-based device ID
 - ✅ Receive waypoints in real-time via WebSocket
 - ✅ Send status emails every 5 minutes with system metrics
 - ✅ Send immediate email notification on WiFi connection
 - ✅ Monitor backend connection (WebSocket + REST API)
 - ✅ Auto-reconnect if connection drops
+- ✅ Send periodic heartbeat messages to server
 - ✅ Support AprilTag detection for computer vision (optional)
 
 ## Prerequisites
@@ -29,12 +31,15 @@ Before you begin, make sure you have:
 ~/james-code/
 ├── .env                             # Email credentials (you'll create this)
 ├── .env.example                     # Template for .env file
-├── config.json                      # Main configuration (backend URLs, SMTP settings)
+├── config.json                      # Main configuration (backend URLs, SMTP, device info)
+├── .device_id                       # Auto-generated persistent device ID (gitignored)
 ├── websocket_status.json            # Auto-generated connection status
 ├── status_monitor.log               # Auto-generated log file
 │
 ├── backend-client/                  # WebSocket client
 │   ├── websocket_client.py          # Connects to backend, receives waypoints
+│   ├── device_manager.py            # Device ID and metadata management
+│   ├── requirements.txt             # Python dependencies
 │   └── setup-websocket-service.sh   # Setup script (auto-generates systemd service)
 │
 ├── status-scripts/                  # Status monitoring
@@ -122,6 +127,14 @@ nano ~/james-code/config.json
     "enabled": false,
     "gpio_pin": 17,
     "blink_duration": 3
+  },
+  "device": {
+    "name": "James Pi",
+    "location": "Development Lab",
+    "metadata": {
+      "description": "Development Raspberry Pi for testing",
+      "owner": "James"
+    }
   }
 }
 ```
@@ -131,6 +144,10 @@ nano ~/james-code/config.json
 - Use port **8001** for WebSocket
 - Use port **8000** for REST API
 - LED control is optional (set `enabled: true` to use)
+- **Device section**: Customize device name, location, and metadata (optional)
+  - `name`: Human-readable device name shown in backend
+  - `location`: Physical location of the device
+  - `metadata`: Any custom key-value pairs for your use case
 
 ---
 
@@ -139,14 +156,18 @@ nano ~/james-code/config.json
 Install required Python packages:
 
 ```bash
-pip3 install websockets aiohttp gpiozero python-dotenv --break-system-packages
+# Install via pip3 (if using virtual environment)
+pip3 install websockets aiohttp gpiozero python-dotenv netifaces --break-system-packages
+
+# Or install system packages (recommended for Raspberry Pi OS)
+sudo apt install -y python3-websockets python3-aiohttp python3-gpiozero python3-dotenv python3-netifaces
 ```
 
-> **Note:** The `--break-system-packages` flag is required on modern Raspberry Pi OS.
+> **Note:** The `--break-system-packages` flag is required on modern Raspberry Pi OS if using pip3 directly. Using `sudo apt install` is recommended for system-wide installation.
 
 Verify installation:
 ```bash
-python3 -c "import websockets, aiohttp, dotenv; print('✅ Dependencies installed')"
+python3 -c "import websockets, aiohttp, dotenv, netifaces; print('✅ Dependencies installed')"
 ```
 
 ---
@@ -192,12 +213,18 @@ sudo journalctl -u vantir-websocket-client.service -f
 
 You should see:
 ```
+✓ Created new device ID: pi-abc123...
+📡 MAC address from eth0: xx:xx:xx:xx:xx:xx
 ✓ Backend health check passed
 🔌 Connected to WebSocket: ws://YOUR_SERVER_IP:8001
-✓ Connected to server with ID: <random-id>
+📤 Sent registration as: pi-abc123... (James Pi)
+✅ Registration confirmed by server!
+💓 Heartbeat task started (interval: 30s)
 ```
 
 Press Ctrl+C to exit logs.
+
+**Note:** The device ID is automatically generated on first run and persisted in `.device_id` file. This ID remains constant across reboots and reinstalls.
 
 ---
 
@@ -407,13 +434,122 @@ Your backend server provides these endpoints:
 - `DELETE /api/points/:id` - Delete waypoint
 
 ### WebSocket (Port 8001)
-Receives real-time messages:
+
+**Messages FROM Pi → Server:**
+- `register` - Device registration with UUID, MAC address, metadata
+- `heartbeat` - Periodic heartbeat (every 30s)
+- `pong` - Response to ping
+- `launch_confirmation` - Acknowledgment of waypoint launch command
+
+**Messages FROM Server → Pi:**
+- `registration_confirmed` - Confirms device registration
 - `connection` - Connection acknowledgment with client ID
 - `waypoint_created` - New waypoint created
 - `waypoint_launch` - Launch command issued
 - `send_test_email` - Test email trigger (LED + email)
+- `ping` - Request for pong response
 - `client_joined` - Another client connected
 - `client_left` - Another client disconnected
+
+---
+
+## Device ID Management
+
+Each Raspberry Pi is assigned a persistent, unique device ID on first run. This ID:
+- **Persists across reboots** - Same ID after restart
+- **Survives reinstalls** - Stored in `.device_id` file (gitignored)
+- **Format**: `pi-{uuid}` (e.g., `pi-deb488ff-f491-45ad-9988-4a2dbcf69736`)
+- **Includes metadata**: Device name, location, MAC address, custom fields
+
+### View Device Information
+
+```bash
+# View device ID file
+cat ~/james-code/.device_id
+
+# Test device manager
+cd ~/james-code/backend-client
+python3 device_manager.py
+```
+
+Output example:
+```json
+{
+  "deviceId": "pi-deb488ff-f491-45ad-9988-4a2dbcf69736",
+  "name": "James Pi",
+  "hostname": "jamesraspberrypi",
+  "deviceType": "raspberry_pi",
+  "macAddress": "d8:3a:dd:26:bf:21",
+  "location": "Development Lab",
+  "metadata": {
+    "description": "Development Raspberry Pi for testing",
+    "owner": "James"
+  }
+}
+```
+
+### Customize Device Information
+
+Edit `config.json` to customize device metadata:
+
+```json
+{
+  "device": {
+    "name": "Kitchen Pi",
+    "location": "Building A - Kitchen",
+    "metadata": {
+      "room": "Kitchen",
+      "floor": "1",
+      "purpose": "Navigation testing"
+    }
+  }
+}
+```
+
+Then restart the service:
+```bash
+sudo systemctl restart vantir-websocket-client.service
+```
+
+### Reset Device ID
+
+To generate a new device ID (e.g., when moving SD card to different Pi):
+
+```bash
+rm ~/james-code/.device_id
+sudo systemctl restart vantir-websocket-client.service
+```
+
+A new device ID will be automatically generated on next connection.
+
+### Registration Flow
+
+When the Pi connects to the server:
+
+1. **Device ID Generation/Loading**
+   - Checks for existing `.device_id` file
+   - If not found, generates new UUID-based ID
+   - Saves to `.device_id` for persistence
+
+2. **MAC Address Detection**
+   - Attempts to detect MAC address from `eth0` or `wlan0`
+   - Used as backup identifier
+
+3. **Metadata Loading**
+   - Loads device name, location from `config.json`
+   - Merges with custom metadata fields
+
+4. **Registration Message**
+   - Sends complete device info to server
+   - Format: `{"type": "register", "deviceId": "...", ...}`
+
+5. **Confirmation**
+   - Waits up to 10 seconds for `registration_confirmed` response
+   - Logs warning if timeout, but continues operation
+
+6. **Heartbeat Start**
+   - Begins sending heartbeat every 30 seconds
+   - Format: `{"type": "heartbeat", "deviceId": "...", "timestamp": "..."}`
 
 ---
 
@@ -599,12 +735,15 @@ Wire the LED:
 ~/james-code/
 ├── .env                             # Email credentials (you create this)
 ├── .env.example                     # Template for .env file
-├── config.json                      # Main configuration (backend URLs, SMTP)
+├── config.json                      # Main configuration (backend URLs, SMTP, device info)
+├── .device_id                       # Auto-generated persistent device ID (gitignored)
 ├── websocket_status.json            # Auto-generated status file
 ├── status_monitor.log               # Auto-generated log file
 │
 ├── backend-client/
 │   ├── websocket_client.py          # WebSocket client
+│   ├── device_manager.py            # Device ID and metadata management
+│   ├── requirements.txt             # Python dependencies
 │   └── setup-websocket-service.sh   # Setup script
 │
 ├── status-scripts/
@@ -672,9 +811,15 @@ For computer vision and AprilTag detection, see:
 ### On Boot
 1. System boots and network connects
 2. **Status Monitor** starts, waits for WiFi
-3. **WebSocket Client** starts, connects to backend
-4. Email sent with connection notification
-5. Both services run continuously
+3. **WebSocket Client** starts
+4. Device ID loaded (or generated if first run)
+5. MAC address detected
+6. Connects to backend WebSocket
+7. Sends device registration message
+8. Waits for registration confirmation
+9. Starts heartbeat task
+10. Email sent with connection notification
+11. Both services run continuously
 
 ### Every 5 Minutes
 1. Status monitor collects system metrics
@@ -716,10 +861,14 @@ Now that setup is complete:
 - [ ] `.env` file created from `.env.example`
 - [ ] `.env` configured with email credentials
 - [ ] `config.json` configured with backend server IP (if needed)
+- [ ] `config.json` device section customized (name, location, metadata)
 - [ ] Gmail App Password created and added to `.env`
-- [ ] Python dependencies installed (`websockets`, `aiohttp`, `gpiozero`, `python-dotenv`)
+- [ ] Python dependencies installed (`websockets`, `aiohttp`, `gpiozero`, `python-dotenv`, `netifaces`)
 - [ ] WebSocket client service installed and running
 - [ ] Status monitor service installed and running
+- [ ] Device ID generated and visible in logs
+- [ ] Device registration confirmed by server
+- [ ] Heartbeat task started
 - [ ] WebSocket connection verified (websocket_status.json shows connected)
 - [ ] REST API responding to health checks
 - [ ] Initial connection email received
@@ -761,9 +910,12 @@ cat ~/james-code/websocket_status.json
 
 Your Raspberry Pi is now fully autonomous and ready for development. The system will:
 - ✅ Auto-connect to backend on every boot
+- ✅ Register with persistent device ID
+- ✅ Send heartbeat messages every 30 seconds
 - ✅ Receive waypoints in real-time
 - ✅ Send detailed status emails
 - ✅ Monitor system and network health
 - ✅ Auto-recover from connection failures
+- ✅ Track device metadata (name, location, MAC address)
 
 You're ready to build autonomous behaviors!

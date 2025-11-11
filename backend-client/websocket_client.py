@@ -19,6 +19,7 @@ from email.mime.multipart import MIMEMultipart
 from gpiozero import LED
 import time
 from dotenv import load_dotenv
+from device_manager import DeviceManager
 
 # Load configuration
 # Get the repository root directory (parent of backend-client)
@@ -79,11 +80,16 @@ class VantirClient:
         self.rest_api_url = rest_api_url
         self.websocket = None
         self.should_reconnect = True
-        self.device_info = get_device_info()
+
+        # Initialize device manager
+        self.device_manager = DeviceManager(config_file=CONFIG_FILE)
+        self.device_info = self.device_manager.get_device_info()
+
         self.session = None
         self.heartbeat_task = None
         self.heartbeat_interval = 30  # Send heartbeat every 30 seconds
         self.config = config
+        self.registered = False  # Track if device is registered with server
 
         # Initialize LED if enabled
         self.led = None
@@ -118,10 +124,26 @@ class VantirClient:
             return False
 
     async def send_heartbeat(self):
-        """Send periodic heartbeat (disabled - backend doesn't support this endpoint)."""
-        # Backend doesn't have /api/devices/heartbeat endpoint
-        # Keeping this method for future use if needed
-        pass
+        """Send periodic heartbeat messages to server."""
+        while self.websocket and not self.websocket.closed:
+            try:
+                await asyncio.sleep(self.heartbeat_interval)
+
+                heartbeat_msg = {
+                    'type': 'heartbeat',
+                    'deviceId': self.device_info['deviceId'],
+                    'timestamp': datetime.now().isoformat()
+                }
+
+                await self.websocket.send(json.dumps(heartbeat_msg))
+                print(f"💓 Heartbeat sent")
+
+            except websockets.exceptions.ConnectionClosed:
+                print("⚠️  Heartbeat stopped - connection closed")
+                break
+            except Exception as e:
+                print(f"⚠️  Heartbeat error: {e}")
+                break
 
     async def fetch_waypoints(self):
         """Fetch all waypoints from REST API."""
@@ -235,6 +257,17 @@ class VantirClient:
                 print(f"   Data: {json.dumps(launch_data, indent=2)}")
                 update_status(True, msg_type)
 
+                # Send confirmation back to server
+                confirmation = {
+                    'type': 'launch_confirmation',
+                    'deviceId': self.device_info['deviceId'],
+                    'waypointId': waypoint_id,
+                    'status': 'started',
+                    'timestamp': datetime.now().isoformat()
+                }
+                await self.websocket.send(json.dumps(confirmation))
+                print(f"✓ Launch confirmation sent")
+
                 # Add your custom launch logic here
                 # Example: Start navigation, activate motors, etc.
                 # self.execute_launch(waypoint_id, launch_data)
@@ -249,6 +282,22 @@ class VantirClient:
                 print(f"👋 Client left: {client_id}")
                 update_status(True, msg_type)
 
+            elif msg_type == 'registration_confirmed':
+                print(f"✅ Device registration confirmed by server")
+                self.registered = True
+                update_status(True, msg_type)
+
+            elif msg_type == 'ping':
+                # Respond to ping with pong
+                pong_msg = {
+                    'type': 'pong',
+                    'deviceId': self.device_info['deviceId'],
+                    'timestamp': datetime.now().isoformat()
+                }
+                await self.websocket.send(json.dumps(pong_msg))
+                print(f"🏓 Pong sent in response to ping")
+                update_status(True, msg_type)
+
             elif msg_type == 'send_test_email':
                 print(f"📧 TEST EMAIL REQUEST RECEIVED")
                 sender = data.get('sender', 'Frontend')
@@ -257,7 +306,7 @@ class VantirClient:
                 # Turn on LED immediately (non-blocking)
                 asyncio.create_task(self.blink_led())
 
-                # Format email
+                # Format email with persistent device ID
                 subject = "🧪 Test Email from Raspberry Pi"
                 body = f"""
 Test Email Triggered from Frontend
@@ -269,8 +318,11 @@ Request Details:
 ----------------
 • Sender: {sender}
 • Request Time: {request_time}
-• Device: {self.device_info['hostname']}
+• Device ID: {self.device_info['deviceId']}
+• Device Name: {self.device_info['name']}
+• Hostname: {self.device_info['hostname']}
 • Device Type: {self.device_info['deviceType']}
+• Location: {self.device_info['location']}
 
 Communication Flow:
 -------------------
@@ -316,15 +368,55 @@ Raspberry Pi WebSocket Client
                 print(f"🔌 Connected to WebSocket: {self.websocket_url}")
                 update_status(True)
 
+                # STEP 1: Send registration message immediately
+                registration_msg = self.device_manager.create_registration_message()
+                await websocket.send(json.dumps(registration_msg))
+                print(f"📤 Sent registration as: {self.device_info['deviceId']} ({self.device_info['name']})")
+
+                # STEP 2: Wait for registration confirmation (with timeout)
+                try:
+                    response = await asyncio.wait_for(websocket.recv(), timeout=10.0)
+                    response_data = json.loads(response)
+
+                    if response_data.get('type') == 'registration_confirmed':
+                        print(f"✅ Registration confirmed by server!")
+                        self.registered = True
+                    else:
+                        print(f"⚠️  Unexpected response: {response_data.get('type')}")
+                        # Still process the message
+                        await self.handle_message(response)
+
+                except asyncio.TimeoutError:
+                    print(f"⚠️  Registration confirmation timeout (continuing anyway)")
+                    self.registered = False
+
+                # STEP 3: Start heartbeat task
+                if self.heartbeat_task:
+                    self.heartbeat_task.cancel()
+                self.heartbeat_task = asyncio.create_task(self.send_heartbeat())
+                print(f"💓 Heartbeat task started (interval: {self.heartbeat_interval}s)")
+
+                # STEP 4: Listen for messages
                 async for message in websocket:
                     await self.handle_message(message)
 
         except websockets.exceptions.ConnectionClosed:
             print("⚠️  WebSocket connection closed by server")
             update_status(False, error="Connection closed by server")
+
+            # Cancel heartbeat task
+            if self.heartbeat_task:
+                self.heartbeat_task.cancel()
+                self.heartbeat_task = None
+
         except Exception as e:
             print(f"❌ Connection error: {e}")
             update_status(False, error=str(e))
+
+            # Cancel heartbeat task
+            if self.heartbeat_task:
+                self.heartbeat_task.cancel()
+                self.heartbeat_task = None
 
     async def connect_with_retry(self):
         """Connect to WebSocket with automatic retry."""
