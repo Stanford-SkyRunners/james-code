@@ -25,6 +25,18 @@ from device_manager import DeviceManager
 # Get the repository root directory (parent of backend-client)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+
+# Add parent directory to path to import webrtc_streamer
+sys.path.insert(0, REPO_ROOT)
+
+# Import WebRTC streamer
+try:
+    from webrtc_streamer import WebRTCStreamer
+    WEBRTC_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️  WebRTC not available: {e}")
+    WEBRTC_AVAILABLE = False
+
 CONFIG_FILE = os.path.join(REPO_ROOT, 'config.json')
 STATUS_FILE = os.path.join(REPO_ROOT, 'websocket_status.json')
 
@@ -88,6 +100,7 @@ class VantirClient:
         self.session = None
         self.heartbeat_task = None
         self.heartbeat_interval = 30  # Send heartbeat every 30 seconds
+        self.polling_task = None  # WebRTC offer polling task
         self.config = config
         self.registered = False  # Track if device is registered with server
 
@@ -104,6 +117,19 @@ class VantirClient:
             except Exception as e:
                 print(f"⚠️  Failed to initialize LED: {e}")
                 self.led = None
+
+        # Initialize WebRTC streamer if available
+        self.webrtc_streamer = None
+        if WEBRTC_AVAILABLE and config.get('video', {}).get('enabled', False):
+            try:
+                self.webrtc_streamer = WebRTCStreamer(
+                    config=config,
+                    on_ice_candidate=self._on_ice_candidate
+                )
+                print(f"✓ WebRTC streamer initialized")
+            except Exception as e:
+                print(f"⚠️  Failed to initialize WebRTC streamer: {e}")
+                self.webrtc_streamer = None
 
     async def check_health(self):
         """Check backend health status."""
@@ -125,7 +151,7 @@ class VantirClient:
 
     async def send_heartbeat(self):
         """Send periodic heartbeat messages to server."""
-        while self.websocket and not self.websocket.closed:
+        while self.websocket:
             try:
                 await asyncio.sleep(self.heartbeat_interval)
 
@@ -260,6 +286,160 @@ class VantirClient:
         except Exception as e:
             print(f"❌ Error sending email: {str(e)}")
             return False
+
+    async def _on_ice_candidate(self, viewer_id: str, candidate):
+        """
+        Callback for when ICE candidates are generated.
+        Sends ICE candidates to the viewer through the backend.
+        """
+        if not self.websocket:
+            return
+
+        try:
+            candidate_msg = {
+                'type': 'webrtc_ice_candidate',
+                'deviceId': self.device_info['deviceId'],
+                'viewerId': viewer_id,
+                'candidate': {
+                    'candidate': candidate.candidate,
+                    'sdpMid': candidate.sdpMid,
+                    'sdpMLineIndex': candidate.sdpMLineIndex
+                }
+            }
+            await self.websocket.send(json.dumps(candidate_msg))
+            print(f"📡 Sent ICE candidate to viewer: {viewer_id}")
+        except Exception as e:
+            print(f"❌ Error sending ICE candidate: {e}")
+
+    async def handle_webrtc_offer(self, viewer_id: str, offer_sdp: dict):
+        """Handle WebRTC offer from a viewer."""
+        if not self.webrtc_streamer:
+            print(f"⚠️  WebRTC not available, cannot handle offer from {viewer_id}")
+            return
+
+        try:
+            print(f"📹 Processing WebRTC offer from viewer: {viewer_id}")
+
+            # Generate answer
+            answer_sdp = await self.webrtc_streamer.handle_offer(viewer_id, offer_sdp)
+
+            # Send answer back to viewer
+            answer_msg = {
+                'type': 'webrtc_answer',
+                'deviceId': self.device_info['deviceId'],
+                'viewerId': viewer_id,
+                'answer': answer_sdp
+            }
+            await self.websocket.send(json.dumps(answer_msg))
+            print(f"✅ Sent WebRTC answer to viewer: {viewer_id}")
+
+        except Exception as e:
+            print(f"❌ Error handling WebRTC offer from {viewer_id}: {e}")
+            # Send error message to backend
+            error_msg = {
+                'type': 'webrtc_error',
+                'deviceId': self.device_info['deviceId'],
+                'viewerId': viewer_id,
+                'error': str(e)
+            }
+            await self.websocket.send(json.dumps(error_msg))
+
+    async def handle_webrtc_ice_candidate(self, viewer_id: str, candidate_data: dict):
+        """Handle ICE candidate from a viewer."""
+        if not self.webrtc_streamer:
+            print(f"⚠️  WebRTC not available, cannot handle ICE candidate from {viewer_id}")
+            return
+
+        try:
+            await self.webrtc_streamer.add_ice_candidate(viewer_id, candidate_data)
+            print(f"📡 Added ICE candidate from viewer: {viewer_id}")
+        except Exception as e:
+            print(f"❌ Error handling ICE candidate from {viewer_id}: {e}")
+
+    async def handle_viewer_disconnect(self, viewer_id: str):
+        """Handle viewer disconnection."""
+        if not self.webrtc_streamer:
+            return
+
+        try:
+            await self.webrtc_streamer.close_peer_connection(viewer_id)
+            print(f"🔌 Closed WebRTC connection for viewer: {viewer_id}")
+        except Exception as e:
+            print(f"❌ Error closing connection for {viewer_id}: {e}")
+
+    async def poll_for_webrtc_offers(self):
+        """
+        Poll the backend for pending WebRTC offers via HTTP.
+        This replaces WebSocket-based offer delivery to avoid SDP parsing issues.
+        """
+        device_id = self.device_info['deviceId']
+        poll_url = f"{self.rest_api_url}/api/webrtc/pending-offers/{device_id}"
+        answer_url = f"{self.rest_api_url}/api/webrtc/answer"
+
+        print(f"🔄 Starting WebRTC offer polling for device: {device_id}")
+
+        while self.should_reconnect and self.webrtc_streamer:
+            try:
+                if not self.session:
+                    self.session = aiohttp.ClientSession()
+
+                # Poll for pending offers
+                async with self.session.get(poll_url) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        offers = data.get('offers', [])
+
+                        for offer_data in offers:
+                            viewer_id = offer_data['viewerId']
+                            offer_sdp = offer_data['offer']
+
+                            print(f"📹 Received WebRTC offer from viewer (via HTTP): {viewer_id}")
+                            print(f"🔍 DEBUG: offer_sdp type: {type(offer_sdp)}")
+                            print(f"🔍 DEBUG: offer_sdp keys: {offer_sdp.keys() if isinstance(offer_sdp, dict) else 'NOT A DICT'}")
+                            print(f"🔍 DEBUG: offer_sdp content: {offer_sdp}")
+
+                            # Ensure offer_sdp has the correct structure
+                            if not isinstance(offer_sdp, dict):
+                                print(f"❌ offer_sdp is not a dict! Converting...")
+                                offer_sdp = {'type': 'offer', 'sdp': str(offer_sdp)}
+
+                            if 'type' not in offer_sdp or 'sdp' not in offer_sdp:
+                                print(f"❌ offer_sdp missing required keys! Keys: {offer_sdp.keys()}")
+                                continue
+
+                            try:
+                                # Generate answer using existing WebRTC streamer
+                                print(f"🔧 Calling handle_offer with viewer_id={viewer_id}, offer_sdp keys={offer_sdp.keys()}")
+                                answer_sdp = await self.webrtc_streamer.handle_offer(viewer_id, offer_sdp)
+                            except Exception as e:
+                                print(f"❌ Error in handle_offer: {e}")
+                                import traceback
+                                traceback.print_exc()
+                                continue
+
+                            # Send answer back via HTTP POST
+                            answer_payload = {
+                                'viewerId': viewer_id,
+                                'deviceId': device_id,
+                                'answer': answer_sdp
+                            }
+
+                            async with self.session.post(answer_url, json=answer_payload) as answer_response:
+                                if answer_response.status == 200:
+                                    print(f"✅ Sent WebRTC answer to viewer (via HTTP): {viewer_id}")
+                                else:
+                                    print(f"❌ Failed to send answer: {answer_response.status}")
+
+                    elif response.status != 404:  # 404 just means no pending offers
+                        print(f"⚠️  Polling error: {response.status}")
+
+            except Exception as e:
+                print(f"❌ Error polling for offers: {e}")
+
+            # Poll every second
+            await asyncio.sleep(1)
+
+        print(f"🛑 WebRTC offer polling stopped")
 
     async def handle_message(self, message):
         """Handle incoming WebSocket messages."""
@@ -413,6 +593,41 @@ Raspberry Pi WebSocket Client
 
                 update_status(True, msg_type)
 
+            elif msg_type == 'webrtc_offer':
+                # WebRTC offer from a viewer
+                viewer_id = data.get('viewerId')
+                offer_sdp = data.get('offer')
+                print(f"📹 WEBRTC OFFER RECEIVED")
+                print(f"   Viewer ID: {viewer_id}")
+                await self.handle_webrtc_offer(viewer_id, offer_sdp)
+                update_status(True, msg_type)
+
+            elif msg_type == 'webrtc_ice_candidate':
+                # ICE candidate from a viewer
+                viewer_id = data.get('viewerId')
+                candidate_data = data.get('candidate')
+                print(f"📡 ICE CANDIDATE RECEIVED from viewer: {viewer_id}")
+                await self.handle_webrtc_ice_candidate(viewer_id, candidate_data)
+                update_status(True, msg_type)
+
+            elif msg_type == 'viewer_disconnected':
+                # Viewer disconnected
+                viewer_id = data.get('viewerId')
+                print(f"👋 VIEWER DISCONNECTED: {viewer_id}")
+                await self.handle_viewer_disconnect(viewer_id)
+                update_status(True, msg_type)
+
+            elif msg_type == 'request_stream':
+                # Viewer requesting to start stream
+                viewer_id = data.get('viewerId')
+                print(f"📹 STREAM REQUESTED by viewer: {viewer_id}")
+                # The viewer will send an offer next, so just acknowledge
+                if self.webrtc_streamer:
+                    print(f"   ✅ WebRTC ready - awaiting offer from {viewer_id}")
+                else:
+                    print(f"   ⚠️  WebRTC not available")
+                update_status(True, msg_type)
+
             else:
                 print(f"❓ Unknown message type: {msg_type}")
                 print(f"   Data: {json.dumps(data, indent=2)}")
@@ -465,6 +680,13 @@ Raspberry Pi WebSocket Client
                 self.heartbeat_task = asyncio.create_task(self.send_heartbeat())
                 print(f"💓 Heartbeat task started (interval: {self.heartbeat_interval}s)")
 
+                # STEP 3.5: Start WebRTC offer polling task
+                if self.webrtc_streamer:
+                    if self.polling_task:
+                        self.polling_task.cancel()
+                    self.polling_task = asyncio.create_task(self.poll_for_webrtc_offers())
+                    print(f"🔄 WebRTC offer polling task started")
+
                 # STEP 4: Listen for messages
                 async for message in websocket:
                     await self.handle_message(message)
@@ -478,6 +700,11 @@ Raspberry Pi WebSocket Client
                 self.heartbeat_task.cancel()
                 self.heartbeat_task = None
 
+            # Cancel polling task
+            if self.polling_task:
+                self.polling_task.cancel()
+                self.polling_task = None
+
         except Exception as e:
             print(f"❌ Connection error: {e}")
             update_status(False, error=str(e))
@@ -486,6 +713,11 @@ Raspberry Pi WebSocket Client
             if self.heartbeat_task:
                 self.heartbeat_task.cancel()
                 self.heartbeat_task = None
+
+            # Cancel polling task
+            if self.polling_task:
+                self.polling_task.cancel()
+                self.polling_task = None
 
     async def connect_with_retry(self):
         """Connect to WebSocket with automatic retry."""
@@ -518,6 +750,11 @@ Raspberry Pi WebSocket Client
 
     async def cleanup(self):
         """Clean up resources."""
+        # Clean up WebRTC connections
+        if self.webrtc_streamer:
+            await self.webrtc_streamer.close_all_connections()
+            print("✓ WebRTC streamer cleaned up")
+
         if self.session and not self.session.closed:
             await self.session.close()
         if self.led:

@@ -843,15 +843,127 @@ For computer vision and AprilTag detection, see:
 
 ---
 
+## 📹 WebRTC Live Video Streaming (Optional)
+
+Your Raspberry Pi can now stream live video to your frontend with ultra-low latency (100-300ms) using WebRTC!
+
+### What You Get
+
+- ✅ **Low Latency**: 100-300ms end-to-end (feels live!)
+- ✅ **High Quality**: 720p @ 30fps H.264 encoding
+- ✅ **Multiple Viewers**: Supports 2-5 simultaneous viewers
+- ✅ **Direct P2P**: Video flows directly from Pi to browsers (no server processing)
+- ✅ **NAT Traversal**: Works across the internet with STUN servers
+- ✅ **Auto Camera Detection**: Supports USB cameras and PiCamera2
+
+### Quick Setup
+
+1. **Install WebRTC dependencies**:
+```bash
+pip3 install aiortc av --break-system-packages
+```
+
+2. **Enable video in config.json**:
+```json
+{
+  "video": {
+    "enabled": true,
+    "width": 1280,
+    "height": 720,
+    "fps": 30,
+    "bitrate": 1500000,
+    "camera_type": "usb"
+  },
+  "webrtc": {
+    "stun_servers": [
+      "stun:stun.l.google.com:19302",
+      "stun:stun1.l.google.com:19302"
+    ],
+    "max_viewers": 5
+  }
+}
+```
+
+3. **Test your camera**:
+```bash
+python3 test_camera.py
+```
+
+4. **Restart the WebSocket client**:
+```bash
+sudo systemctl restart vantir-websocket-client.service
+```
+
+5. **Check logs to verify WebRTC initialization**:
+```bash
+sudo journalctl -u vantir-websocket-client.service -n 50
+# You should see: "✓ WebRTC streamer initialized"
+```
+
+### Implementation Guides
+
+**Complete implementation guides are provided:**
+
+1. **Backend Setup** - See `WEBRTC_BACKEND_GUIDE.md`
+   - WebSocket message types to handle
+   - Session tracking and message relay logic
+   - Example code for Node.js and Python
+
+2. **Frontend Setup** - See `WEBRTC_FRONTEND_GUIDE.md`
+   - Complete JavaScript client implementation
+   - React and Vue examples
+   - Connection state management
+
+### Files Added for WebRTC
+
+```
+~/james-code/
+├── webrtc_streamer.py              # WebRTC streaming engine
+├── test_camera.py                  # Camera testing utility
+├── WEBRTC_BACKEND_GUIDE.md         # Backend implementation guide
+└── WEBRTC_FRONTEND_GUIDE.md        # Frontend implementation guide
+```
+
+### Configuration Options
+
+**Video Settings:**
+- `width`, `height`: Resolution (default: 1280x720)
+- `fps`: Frame rate (default: 30fps)
+- `bitrate`: Encoding bitrate in bps (default: 1.5 Mbps)
+- `camera_type`: "usb" or "picamera2"
+
+**WebRTC Settings:**
+- `stun_servers`: STUN servers for NAT traversal
+- `max_viewers`: Maximum simultaneous viewers (default: 5)
+
+### Troubleshooting
+
+**Camera not detected:**
+```bash
+# List available cameras
+ls /dev/video*
+
+# Test specific camera
+python3 test_camera.py 0
+```
+
+**WebRTC not initializing:**
+- Check `config.json` has `"enabled": true` in video section
+- Verify aiortc is installed: `python3 -c "import aiortc; print('OK')"`
+- Check logs: `sudo journalctl -u vantir-websocket-client.service -f`
+
+---
+
 ## Next Steps
 
 Now that setup is complete:
 
 1. **Test waypoint creation** - Create waypoints in your frontend and verify Pi receives them
-2. **Customize behavior** - Edit `websocket_client.py` to add your autonomous logic
-3. **Add AprilTag detection** - See `apriltag/README.md` for camera-based navigation
-4. **Monitor status emails** - Set up email filters/alerts for status monitoring
-5. **Scale to multiple Pis** - Repeat this setup on additional Raspberry Pis
+2. **Set up WebRTC streaming** - Follow the guides above to enable live video
+3. **Customize behavior** - Edit `websocket_client.py` to add your autonomous logic
+4. **Add AprilTag detection** - See `apriltag/README.md` for camera-based navigation
+5. **Monitor status emails** - Set up email filters/alerts for status monitoring
+6. **Scale to multiple Pis** - Repeat this setup on additional Raspberry Pis
 
 ---
 
