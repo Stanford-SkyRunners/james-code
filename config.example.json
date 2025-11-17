@@ -1,0 +1,25 @@
+{
+  "email": {
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 587
+  },
+  "backend": {
+    "websocket_url": "ws://YOUR_BACKEND_IP:8000/ws",
+    "rest_api_url": "http://YOUR_BACKEND_IP:8000",
+    "description": "Backend server connection details"
+  },
+  "led": {
+    "enabled": true,
+    "gpio_pin": 17,
+    "blink_duration": 3,
+    "description": "LED control settings. GPIO pin uses BCM numbering. Blink duration in seconds."
+  },
+  "device": {
+    "name": "My Raspberry Pi",
+    "location": "Your Location",
+    "metadata": {
+      "description": "Your device description",
+      "owner": "Your Name"
+    }
+  }
+}

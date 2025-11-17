@@ -6,6 +6,9 @@ status_monitor.log
 websocket_status.json
 .device_id
 
+# Device-specific configuration (contains IPs, device names, locations)
+config.json
+
 # Environment variables with credentials
 .env
 

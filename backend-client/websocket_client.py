@@ -390,6 +390,29 @@ Raspberry Pi WebSocket Client
 
                 update_status(True, msg_type)
 
+            elif msg_type == 'device_renamed':
+                # Real-time rename notification from backend
+                device_id = data.get('deviceId')
+                new_name = data.get('newName')
+                old_name = data.get('oldName')
+
+                print(f"📝 DEVICE RENAMED (Real-time)")
+                print(f"   Device ID: {device_id}")
+                print(f"   Old Name: {old_name}")
+                print(f"   New Name: {new_name}")
+
+                # Only update if this rename is for us
+                if device_id == self.device_info['deviceId']:
+                    if new_name and new_name != self.device_info['name']:
+                        print(f"   ✅ Updating local config to match backend...")
+                        self.update_local_config_name(new_name)
+                    else:
+                        print(f"   ℹ️  Already using name '{new_name}'")
+                else:
+                    print(f"   ℹ️  Rename was for different device (ignoring)")
+
+                update_status(True, msg_type)
+
             else:
                 print(f"❓ Unknown message type: {msg_type}")
                 print(f"   Data: {json.dumps(data, indent=2)}")
