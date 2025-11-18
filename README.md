@@ -72,7 +72,58 @@ scp -r james-code/ pi@<raspberry-pi-ip>:~/
 
 ---
 
-## Step 2: Configure Environment Variables
+## Step 2: Configure Your Device
+
+### 2.1 Create Configuration File
+
+Copy the example configuration file and customize it for your device:
+
+```bash
+cp config.example.json config.json
+nano config.json
+```
+
+**IMPORTANT:** You must customize these fields in `config.json`:
+
+```json
+{
+  "backend": {
+    "websocket_url": "ws://YOUR_BACKEND_IP:8000/ws",
+    "rest_api_url": "http://YOUR_BACKEND_IP:8000"
+  },
+  "device": {
+    "name": "My Raspberry Pi",        # ← CHANGE THIS to a meaningful name
+    "location": "Your Location",       # ← CHANGE THIS to actual location
+    "metadata": {
+      "description": "Your device description",  # ← CHANGE THIS
+      "owner": "Your Name"                        # ← CHANGE THIS
+    }
+  }
+}
+```
+
+**What happens if you don't change these:**
+- `name`: Defaults to `"Raspberry Pi (hostname)"` - not very useful when you have multiple devices
+- `location`: Defaults to `"Unknown"` - you won't know where your device is
+- `metadata.owner` and `metadata.description`: Will be empty - no info about who owns it or what it's for
+
+**Example customization:**
+```json
+{
+  "device": {
+    "name": "Kitchen Navigation Pi",
+    "location": "Building A - Kitchen - Counter 3",
+    "metadata": {
+      "description": "Autonomous navigation testing unit",
+      "owner": "James",
+      "department": "Robotics Lab",
+      "install_date": "2025-11-17"
+    }
+  }
+}
+```
+
+### 2.2 Configure Environment Variables
 
 Create your `.env` file from the template:
 
@@ -90,7 +141,7 @@ EMAIL_FROM_ADDRESS=your-email@gmail.com
 EMAIL_TO_ADDRESS=your-email@gmail.com
 ```
 
-### Gmail App Password Setup
+### 2.3 Gmail App Password Setup
 
 1. Go to https://myaccount.google.com/
 2. Navigate to **Security** → **2-Step Verification** (enable if not already)
@@ -105,53 +156,7 @@ EMAIL_TO_ADDRESS=your-email@gmail.com
 
 ---
 
-## Step 3: Configure Backend Settings (Optional)
-
-The backend server URLs are already set in `config.json`. Only edit if your backend server IP differs:
-
-```bash
-nano ~/james-code/config.json
-```
-
-```json
-{
-  "email": {
-    "smtp_server": "smtp.gmail.com",
-    "smtp_port": 587
-  },
-  "backend": {
-    "websocket_url": "ws://YOUR_SERVER_IP:8001",
-    "rest_api_url": "http://YOUR_SERVER_IP:8000"
-  },
-  "led": {
-    "enabled": false,
-    "gpio_pin": 17,
-    "blink_duration": 3
-  },
-  "device": {
-    "name": "James Pi",
-    "location": "Development Lab",
-    "metadata": {
-      "description": "Development Raspberry Pi for testing",
-      "owner": "James"
-    }
-  }
-}
-```
-
-**Important:**
-- Replace `YOUR_SERVER_IP` with your backend server's IP address
-- Use port **8001** for WebSocket
-- Use port **8000** for REST API
-- LED control is optional (set `enabled: true` to use)
-- **Device section**: Customize device name, location, and metadata (optional)
-  - `name`: Human-readable device name shown in backend
-  - `location`: Physical location of the device
-  - `metadata`: Any custom key-value pairs for your use case
-
----
-
-## Step 4: Install Python Dependencies
+## Step 3: Install Python Dependencies
 
 Install required Python packages:
 
@@ -172,7 +177,7 @@ python3 -c "import websockets, aiohttp, dotenv, netifaces; print('✅ Dependenci
 
 ---
 
-## Step 5: Install WebSocket Client Service
+## Step 4: Install WebSocket Client Service
 
 Run the setup script:
 
@@ -228,7 +233,7 @@ Press Ctrl+C to exit logs.
 
 ---
 
-## Step 6: Install Status Monitor Service
+## Step 5: Install Status Monitor Service
 
 Run the setup script:
 
@@ -253,9 +258,9 @@ You should see it waiting for network, then connecting and sending the first ema
 
 ---
 
-## Step 7: Test Your Setup
+## Step 6: Test Your Setup
 
-### 7.1 Check WebSocket Connection
+### 6.1 Check WebSocket Connection
 
 View connection status:
 ```bash
@@ -272,7 +277,7 @@ Should show:
 }
 ```
 
-### 7.2 Test REST API Connection
+### 6.2 Test REST API Connection
 
 ```bash
 # Health check
@@ -285,7 +290,7 @@ curl http://YOUR_SERVER_IP:8000/health
 curl http://YOUR_SERVER_IP:8000/api/points
 ```
 
-### 7.3 Check Email Notifications
+### 6.3 Check Email Notifications
 
 Within 1-2 minutes of starting the status monitor, you should receive an email like:
 
@@ -308,7 +313,7 @@ Backend Connection:
 Status monitoring is now active. You will receive status updates every 5 minutes.
 ```
 
-### 7.4 Test Waypoint Reception
+### 6.4 Test Waypoint Reception
 
 1. Open your frontend application
 2. Create a new waypoint on the map
@@ -329,7 +334,7 @@ You should see:
 
 ---
 
-## Step 8: Reboot Test
+## Step 7: Reboot Test
 
 Test that everything auto-starts on boot:
 
@@ -843,114 +848,241 @@ For computer vision and AprilTag detection, see:
 
 ---
 
-## 📹 WebRTC Live Video Streaming (Optional)
+## 📹 Live Video Streaming with WebRTC (Optional)
 
-Your Raspberry Pi can now stream live video to your frontend with ultra-low latency (100-300ms) using WebRTC!
+Stream live video from your Raspberry Pi camera to your web frontend with ultra-low latency using WebRTC!
 
-### What You Get
+### Features
 
-- ✅ **Low Latency**: 100-300ms end-to-end (feels live!)
-- ✅ **High Quality**: 720p @ 30fps H.264 encoding
-- ✅ **Multiple Viewers**: Supports 2-5 simultaneous viewers
-- ✅ **Direct P2P**: Video flows directly from Pi to browsers (no server processing)
-- ✅ **NAT Traversal**: Works across the internet with STUN servers
-- ✅ **Auto Camera Detection**: Supports USB cameras and PiCamera2
+- ✅ **Ultra-Low Latency**: 100-300ms end-to-end delay (feels like live TV!)
+- ✅ **High Quality**: Configurable resolution up to 1080p @ 30fps
+- ✅ **Multiple Viewers**: Support 2-5+ simultaneous viewers
+- ✅ **Direct P2P Connection**: Video streams directly from Pi to browsers (minimal server load)
+- ✅ **NAT Traversal**: Works across the internet using STUN servers
+- ✅ **Camera Auto-Detection**: Supports both USB webcams and Raspberry Pi Camera Module
 
-### Quick Setup
+### Quick Start
 
-1. **Install WebRTC dependencies**:
+#### 1. Install Video Dependencies
+
 ```bash
+# Install WebRTC and video encoding libraries
 pip3 install aiortc av --break-system-packages
+
+# Verify installation
+python3 -c "import aiortc, av; print('✅ Video libraries installed')"
 ```
 
-2. **Enable video in config.json**:
+#### 2. Configure Video Settings
+
+Your `config.json` already has a video section. Enable and customize it:
+
+```bash
+nano ~/james-code/config.json
+```
+
+Update the video section:
+
 ```json
 {
   "video": {
-    "enabled": true,
-    "width": 1280,
-    "height": 720,
-    "fps": 30,
-    "bitrate": 1500000,
-    "camera_type": "usb"
+    "enabled": true,              # ← Set to true to enable streaming
+    "width": 1280,                # Resolution width (640, 1280, 1920)
+    "height": 720,                # Resolution height (480, 720, 1080)
+    "fps": 30,                    # Frame rate (15, 24, 30)
+    "bitrate": 1500000,           # Bitrate in bits/second (higher = better quality)
+    "camera_type": "usb"          # "usb" for webcam, "picamera2" for Pi Camera
   },
   "webrtc": {
     "stun_servers": [
       "stun:stun.l.google.com:19302",
       "stun:stun1.l.google.com:19302"
     ],
-    "max_viewers": 5
+    "max_viewers": 5              # Maximum simultaneous viewers
   }
 }
 ```
 
-3. **Test your camera**:
+**Camera Type Guide:**
+- `"usb"`: For USB webcams (Logitech, generic USB cameras)
+- `"picamera2"`: For official Raspberry Pi Camera Module (requires `picamera2` library)
+
+**Resolution & Bitrate Recommendations:**
+- **Low bandwidth** (mobile hotspot): 640x480 @ 15fps, bitrate 500000 (500 kbps)
+- **Medium quality**: 1280x720 @ 30fps, bitrate 1500000 (1.5 Mbps) - **Default**
+- **High quality**: 1920x1080 @ 30fps, bitrate 3000000 (3 Mbps)
+
+#### 3. Test Your Camera
+
+Verify your camera is detected and working:
+
 ```bash
+cd ~/james-code
+
+# List available cameras
+ls /dev/video*
+# Should show: /dev/video0 (or /dev/video1, etc.)
+
+# Test camera capture
 python3 test_camera.py
+
+# Test specific camera device
+python3 test_camera.py 0  # for /dev/video0
 ```
 
-4. **Restart the WebSocket client**:
+You should see:
+```
+📹 Testing camera /dev/video0...
+✅ Camera opened successfully
+📸 Resolution: 1280x720
+🎬 FPS: 30
+✅ Camera test complete
+```
+
+#### 4. Enable Streaming
+
+Restart the WebSocket client to enable video streaming:
+
 ```bash
 sudo systemctl restart vantir-websocket-client.service
 ```
 
-5. **Check logs to verify WebRTC initialization**:
+Check logs to verify WebRTC initialized:
+
 ```bash
-sudo journalctl -u vantir-websocket-client.service -n 50
-# You should see: "✓ WebRTC streamer initialized"
+sudo journalctl -u vantir-websocket-client.service -n 50 | grep -i webrtc
 ```
 
-### Implementation Guides
+You should see:
+```
+✓ WebRTC streamer initialized
+📹 Camera type: usb
+📐 Resolution: 1280x720 @ 30fps
+```
 
-**Complete implementation guides are provided:**
+#### 5. Connect from Frontend
 
-1. **Backend Setup** - See `WEBRTC_BACKEND_GUIDE.md`
-   - WebSocket message types to handle
-   - Session tracking and message relay logic
-   - Example code for Node.js and Python
+To view the stream, your frontend needs to implement WebRTC client. **Complete implementation guides provided:**
 
-2. **Frontend Setup** - See `WEBRTC_FRONTEND_GUIDE.md`
-   - Complete JavaScript client implementation
-   - React and Vue examples
-   - Connection state management
+- **`WEBRTC_BACKEND_GUIDE.md`** - How to relay WebRTC signaling messages in your backend
+- **`WEBRTC_FRONTEND_GUIDE.md`** - Complete JavaScript code for browser video playback
 
-### Files Added for WebRTC
+### How It Works
+
+```
+┌─────────────────────┐
+│   Raspberry Pi      │
+│                     │
+│  Camera → WebRTC    │──┐
+│  (H.264 encoding)   │  │
+└─────────────────────┘  │
+                          │  Signaling via
+                          │  WebSocket Server
+┌─────────────────────┐  │  (SDP exchange)
+│   Your Backend      │◄─┤
+│   (Message relay)   │  │
+└─────────────────────┘  │
+                          │
+┌─────────────────────┐  │  Direct P2P video
+│   Web Browser       │◄─┘  stream (UDP/RTP)
+│   (Video player)    │
+└─────────────────────┘
+```
+
+1. **Pi** captures video and encodes with H.264
+2. **Signaling** happens through your WebSocket backend (offers/answers/ICE candidates)
+3. **Video stream** flows directly from Pi to browser via P2P connection
+4. **STUN servers** help traverse NAT/firewalls
+
+### Configuration Reference
+
+**Video Settings:**
+
+| Option | Description | Default | Options |
+|--------|-------------|---------|---------|
+| `enabled` | Enable/disable video streaming | `false` | `true`, `false` |
+| `width` | Video width in pixels | `1280` | `640`, `1280`, `1920` |
+| `height` | Video height in pixels | `720` | `480`, `720`, `1080` |
+| `fps` | Frames per second | `30` | `15`, `24`, `30` |
+| `bitrate` | Encoding bitrate (bits/sec) | `1500000` | `500000` - `5000000` |
+| `camera_type` | Camera device type | `"usb"` | `"usb"`, `"picamera2"` |
+
+**WebRTC Settings:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `stun_servers` | STUN servers for NAT traversal | Google STUN servers |
+| `turn_servers` | TURN servers (optional, for restrictive NATs) | `[]` |
+| `max_viewers` | Max simultaneous viewers | `5` |
+
+### Troubleshooting
+
+#### Camera Not Detected
+
+```bash
+# Check if camera is connected
+ls /dev/video*
+
+# Check camera permissions
+ls -l /dev/video0
+
+# Test with different camera index
+python3 test_camera.py 1  # Try /dev/video1
+```
+
+**Common fixes:**
+- USB camera not plugged in
+- Camera already in use by another process
+- Need to add user to `video` group: `sudo usermod -a -G video $USER`
+
+#### WebRTC Not Initializing
+
+```bash
+# Check logs for errors
+sudo journalctl -u vantir-websocket-client.service -f
+
+# Verify video enabled in config
+cat ~/james-code/config.json | grep -A 10 '"video"'
+
+# Test dependencies
+python3 -c "import aiortc, av; print('OK')"
+```
+
+**Common issues:**
+- `config.json` has `"enabled": false`
+- Missing dependencies (`pip3 install aiortc av`)
+- Camera permissions issue
+
+#### Low Frame Rate / Stuttering
+
+- **Lower resolution**: Try 640x480 instead of 1280x720
+- **Reduce FPS**: Try 15fps or 24fps instead of 30fps
+- **Lower bitrate**: Reduce to 800000 (800 kbps)
+- **Check CPU**: Run `htop` - video encoding is CPU-intensive
+- **Network bandwidth**: Ensure stable connection with enough upload speed
+
+#### Connection Issues
+
+- **STUN servers unreachable**: Try adding more STUN servers
+- **Firewall blocking**: Ensure UDP ports are open
+- **Restrictive NAT**: May need TURN server (relay server) instead of STUN
+
+### Next Steps
+
+1. ✅ Enable and test camera on Pi (Steps 1-4 above)
+2. 📘 Read `WEBRTC_BACKEND_GUIDE.md` to add signaling relay to your backend
+3. 🌐 Read `WEBRTC_FRONTEND_GUIDE.md` to implement video player in your web app
+4. 🎥 View live stream in your browser!
+
+### Files Added for Video Streaming
 
 ```
 ~/james-code/
 ├── webrtc_streamer.py              # WebRTC streaming engine
 ├── test_camera.py                  # Camera testing utility
-├── WEBRTC_BACKEND_GUIDE.md         # Backend implementation guide
-└── WEBRTC_FRONTEND_GUIDE.md        # Frontend implementation guide
+├── WEBRTC_BACKEND_GUIDE.md         # Backend signaling implementation
+└── WEBRTC_FRONTEND_GUIDE.md        # Frontend video player code
 ```
-
-### Configuration Options
-
-**Video Settings:**
-- `width`, `height`: Resolution (default: 1280x720)
-- `fps`: Frame rate (default: 30fps)
-- `bitrate`: Encoding bitrate in bps (default: 1.5 Mbps)
-- `camera_type`: "usb" or "picamera2"
-
-**WebRTC Settings:**
-- `stun_servers`: STUN servers for NAT traversal
-- `max_viewers`: Maximum simultaneous viewers (default: 5)
-
-### Troubleshooting
-
-**Camera not detected:**
-```bash
-# List available cameras
-ls /dev/video*
-
-# Test specific camera
-python3 test_camera.py 0
-```
-
-**WebRTC not initializing:**
-- Check `config.json` has `"enabled": true` in video section
-- Verify aiortc is installed: `python3 -c "import aiortc; print('OK')"`
-- Check logs: `sudo journalctl -u vantir-websocket-client.service -f`
 
 ---
 
@@ -969,11 +1101,13 @@ Now that setup is complete:
 
 ## Complete Setup Checklist
 
+### Required Setup
 - [ ] Repository cloned to `~/james-code`
+- [ ] **`config.json` created from `config.example.json`**
+- [ ] **`config.json` updated with backend server IP**
+- [ ] **`config.json` device section customized (name, location, owner, description)**
 - [ ] `.env` file created from `.env.example`
 - [ ] `.env` configured with email credentials
-- [ ] `config.json` configured with backend server IP (if needed)
-- [ ] `config.json` device section customized (name, location, metadata)
 - [ ] Gmail App Password created and added to `.env`
 - [ ] Python dependencies installed (`websockets`, `aiohttp`, `gpiozero`, `python-dotenv`, `netifaces`)
 - [ ] WebSocket client service installed and running
@@ -988,6 +1122,15 @@ Now that setup is complete:
 - [ ] System tested after reboot
 - [ ] Both services auto-start on boot
 - [ ] Status emails arriving every 5 minutes
+
+### Optional - Video Streaming
+- [ ] Video dependencies installed (`aiortc`, `av`)
+- [ ] Camera detected and tested with `test_camera.py`
+- [ ] `config.json` video section enabled and configured
+- [ ] WebSocket client restarted, WebRTC initialized in logs
+- [ ] Backend implemented WebRTC signaling relay (see `WEBRTC_BACKEND_GUIDE.md`)
+- [ ] Frontend implemented WebRTC video player (see `WEBRTC_FRONTEND_GUIDE.md`)
+- [ ] Live video stream visible in browser
 
 ---
 
